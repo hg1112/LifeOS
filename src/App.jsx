@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, createContext, useCallback, useRef } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from './components/Layout/AppLayout'
 import Journal from './pages/Journal'
@@ -8,6 +8,7 @@ import Notes from './pages/Notes'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 import { useGoogleAuth } from './hooks/useGoogleAuth'
+import { useGoogleDrive } from './hooks/useGoogleDrive'
 import './App.css'
 
 // Create contexts
@@ -21,6 +22,16 @@ function App() {
   })
 
   const { user, isLoading, isAuthenticated, signIn, signOut } = useGoogleAuth()
+  const {
+    saveJournalEntry,
+    loadJournalEntry,
+    listJournalEntries,
+    saveTasks,
+    loadTasks,
+    initializeFolders,
+    isLoading: isDriveLoading,
+    error: driveError
+  } = useGoogleDrive()
 
   // Journal, tasks, notes, and drawings data state
   const [journalEntries, setJournalEntries] = useState({})
@@ -28,6 +39,11 @@ function App() {
   const [notes, setNotes] = useState([])
   const [drawings, setDrawings] = useState([])
   const [syncStatus, setSyncStatus] = useState('idle')
+  const [dataLoaded, setDataLoaded] = useState(false)
+
+  // Refs for debouncing
+  const journalSaveTimeoutRef = useRef({})
+  const tasksSaveTimeoutRef = useRef(null)
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -36,8 +52,62 @@ function App() {
     localStorage.setItem('lifeos-theme', newTheme)
   }
 
-  // Load demo data
+  // Load data from Google Drive on startup
   useEffect(() => {
+    const loadDataFromDrive = async () => {
+      if (!isAuthenticated || user?.isDemo || dataLoaded) return
+
+      try {
+        setSyncStatus('syncing')
+
+        // Initialize Drive folders
+        await initializeFolders()
+
+        // Load journal entries
+        const entries = await listJournalEntries()
+        if (entries && entries.length > 0) {
+          const journalData = {}
+          for (const entry of entries) {
+            const date = entry.name.replace('.md', '')
+            const content = await loadJournalEntry(date)
+            if (content) {
+              journalData[date] = {
+                date,
+                content,
+                lastModified: entry.modifiedTime
+              }
+            }
+          }
+          if (Object.keys(journalData).length > 0) {
+            setJournalEntries(journalData)
+          }
+        }
+
+        // Load tasks
+        const tasksData = await loadTasks()
+        if (tasksData?.tasks) {
+          setTasks(tasksData.tasks)
+        }
+
+        setDataLoaded(true)
+        setSyncStatus('synced')
+      } catch (error) {
+        console.error('Error loading data from Drive:', error)
+        setSyncStatus('error')
+        // Still mark as loaded so we don't keep retrying
+        setDataLoaded(true)
+      }
+    }
+
+    loadDataFromDrive()
+  }, [isAuthenticated, user, dataLoaded, initializeFolders, listJournalEntries, loadJournalEntry, loadTasks])
+
+  // Load demo data if not authenticated or in demo mode
+  useEffect(() => {
+    if (dataLoaded) return
+    if (isLoading) return
+    if (isAuthenticated && !user?.isDemo) return // Will load from Drive
+
     const today = new Date().toISOString().split('T')[0]
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
 
@@ -64,35 +134,97 @@ function App() {
       { id: '1', title: 'Welcome to Notes', content: '# Welcome to Notes\n\nThis is your free-form note-taking space!\n\n## Features\n- Create folders to organize notes\n- Write in markdown\n- Search across all notes\n\n## Tips\n- Use **bold** and *italic* for emphasis\n- Create lists with - or 1.\n- Add links with [text](url)', folder: 'root', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
       { id: '2', title: 'Project Ideas', content: '# Project Ideas\n\n## App Ideas\n- Habit tracker\n- Recipe manager\n- Budget planner\n\n## Learning\n- React Native\n- Machine Learning', folder: 'Projects', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     ])
-  }, [])
 
-  // Journal operations
-  const updateJournalEntry = (date, content) => {
+    setDataLoaded(true)
+  }, [isLoading, isAuthenticated, user, dataLoaded])
+
+  // Auto-save journal entry to Drive (debounced)
+  const saveJournalToDrive = useCallback(async (date, content) => {
+    if (!isAuthenticated || user?.isDemo) return
+
+    try {
+      await saveJournalEntry(date, content)
+      setSyncStatus('synced')
+    } catch (error) {
+      console.error('Error saving journal to Drive:', error)
+      setSyncStatus('error')
+    }
+  }, [isAuthenticated, user, saveJournalEntry])
+
+  // Auto-save tasks to Drive (debounced)
+  const saveTasksToDrive = useCallback(async (tasksToSave) => {
+    if (!isAuthenticated || user?.isDemo) return
+
+    try {
+      await saveTasks(tasksToSave)
+      setSyncStatus('synced')
+    } catch (error) {
+      console.error('Error saving tasks to Drive:', error)
+      setSyncStatus('error')
+    }
+  }, [isAuthenticated, user, saveTasks])
+
+  // Journal operations with auto-sync
+  const updateJournalEntry = useCallback((date, content) => {
     setJournalEntries(prev => ({
       ...prev,
       [date]: { date, content, lastModified: new Date().toISOString() }
     }))
     setSyncStatus('syncing')
-    setTimeout(() => setSyncStatus('synced'), 500)
-  }
 
-  // Task operations
-  const addTask = (task) => {
+    // Debounce save to Drive (1 second delay)
+    if (journalSaveTimeoutRef.current[date]) {
+      clearTimeout(journalSaveTimeoutRef.current[date])
+    }
+    journalSaveTimeoutRef.current[date] = setTimeout(() => {
+      saveJournalToDrive(date, content)
+    }, 1000)
+  }, [saveJournalToDrive])
+
+  // Task operations with auto-sync
+  const syncTasksToDriver = useCallback((newTasks) => {
+    setSyncStatus('syncing')
+
+    if (tasksSaveTimeoutRef.current) {
+      clearTimeout(tasksSaveTimeoutRef.current)
+    }
+    tasksSaveTimeoutRef.current = setTimeout(() => {
+      saveTasksToDrive(newTasks)
+    }, 1000)
+  }, [saveTasksToDrive])
+
+  const addTask = useCallback((task) => {
     const newTask = { id: Date.now().toString(), ...task, completed: false, createdAt: new Date().toISOString() }
-    setTasks(prev => [newTask, ...prev])
-  }
+    setTasks(prev => {
+      const newTasks = [newTask, ...prev]
+      syncTasksToDriver(newTasks)
+      return newTasks
+    })
+  }, [syncTasksToDriver])
 
-  const updateTask = (id, updates) => {
-    setTasks(prev => prev.map(task => task.id === id ? { ...task, ...updates } : task))
-  }
+  const updateTask = useCallback((id, updates) => {
+    setTasks(prev => {
+      const newTasks = prev.map(task => task.id === id ? { ...task, ...updates } : task)
+      syncTasksToDriver(newTasks)
+      return newTasks
+    })
+  }, [syncTasksToDriver])
 
-  const deleteTask = (id) => {
-    setTasks(prev => prev.filter(task => task.id !== id))
-  }
+  const deleteTask = useCallback((id) => {
+    setTasks(prev => {
+      const newTasks = prev.filter(task => task.id !== id)
+      syncTasksToDriver(newTasks)
+      return newTasks
+    })
+  }, [syncTasksToDriver])
 
-  const toggleTask = (id) => {
-    setTasks(prev => prev.map(task => task.id === id ? { ...task, completed: !task.completed } : task))
-  }
+  const toggleTask = useCallback((id) => {
+    setTasks(prev => {
+      const newTasks = prev.map(task => task.id === id ? { ...task, completed: !task.completed } : task)
+      syncTasksToDriver(newTasks)
+      return newTasks
+    })
+  }, [syncTasksToDriver])
 
   // Notes operations
   const addNote = (note) => {
@@ -147,7 +279,9 @@ function App() {
           saveDrawing,
           loadDrawing,
           deleteDrawing,
-          syncStatus
+          syncStatus,
+          isDriveLoading,
+          driveError
         }}>
           <Routes>
             <Route path="/login" element={
