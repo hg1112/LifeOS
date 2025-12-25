@@ -1,0 +1,174 @@
+/* Draw Page Styles */
+
+.draw-page {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--color-bg-primary);
+}
+
+.draw-error {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    color: var(--color-text-secondary);
+}
+
+.loading-canvas {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-lg);
+}
+
+/* Sidebar */
+.draw-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-secondary);
+    border-right: 1px solid var(--color-border-primary);
+}
+
+.draw-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border-primary);
+}
+
+.draw-sidebar-header h2 {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+}
+
+/* Drawing List */
+.drawing-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-2);
+}
+
+.drawing-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2);
+    background: none;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--transition-fast);
+    margin-bottom: var(--space-1);
+}
+
+.drawing-item:hover {
+    background-color: var(--color-bg-tertiary);
+}
+
+.drawing-icon {
+    font-size: var(--font-size-lg);
+}
+
+.drawing-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.drawing-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.drawing-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+}
+
+.empty-drawings {
+    text-align: center;
+    padding: var(--space-6);
+    color: var(--color-text-tertiary);
+}
+
+.empty-drawings .hint {
+    font-size: var(--font-size-xs);
+    margin-top: var(--space-2);
+}
+
+/* Canvas Area */
+.draw-canvas {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.draw-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border-primary);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.drawing-name-input {
+    border: none;
+    background: none;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    outline: none;
+    min-width: 150px;
+}
+
+.drawing-name-input::placeholder {
+    color: var(--color-text-tertiary);
+}
+
+/* Excalidraw Wrapper */
+.excalidraw-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.excalidraw-wrapper .excalidraw {
+    height: 100% !important;
+    width: 100% !important;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .draw-sidebar {
+        display: none;
+    }
+}

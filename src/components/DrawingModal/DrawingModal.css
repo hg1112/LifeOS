@@ -1,0 +1,99 @@
+/* Drawing Modal Styles */
+
+.drawing-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: var(--color-bg-overlay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: var(--space-4);
+}
+
+.drawing-modal {
+    width: 100%;
+    max-width: 1200px;
+    height: 80vh;
+    background-color: var(--color-bg-elevated);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-2xl);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.drawing-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border-primary);
+    background-color: var(--color-bg-secondary);
+}
+
+.drawing-modal-header h2 {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+
+.drawing-modal-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.drawing-canvas-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.drawing-canvas-container .excalidraw {
+    height: 100% !important;
+    width: 100% !important;
+}
+
+/* Hide Excalidraw library sidebar/shapes panel */
+.drawing-canvas-container .layer-ui__sidebar {
+    display: none !important;
+}
+
+.drawing-canvas-container .layer-ui__sidebar-body {
+    display: none !important;
+}
+
+/* Hide library button */
+.drawing-canvas-container [aria-label="Library"] {
+    display: none !important;
+}
+
+/* Ensure canvas fills the space */
+.drawing-canvas-container .excalidraw-container {
+    height: 100% !important;
+}
+
+.loading-canvas {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-lg);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .drawing-modal {
+        height: 95vh;
+        max-width: 100%;
+        border-radius: var(--radius-lg);
+    }
+
+    .drawing-modal-header {
+        padding: var(--space-2) var(--space-3);
+    }
+
+    .drawing-modal-header h2 {
+        font-size: var(--font-size-base);
+    }
+}
