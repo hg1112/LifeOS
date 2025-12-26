@@ -46,11 +46,7 @@ export default defineConfig({
           {
             // Google Drive and Calendar API - always use network
             urlPattern: /^https:\/\/.*\.googleapis\.com\/.*/i,
-            handler: 'NetworkOnly',
-            options: {
-              cacheName: 'google-api-cache',
-              networkTimeoutSeconds: 30
-            }
+            handler: 'NetworkOnly'
           },
           {
             // Google Identity Services - always use network
