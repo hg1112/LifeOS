@@ -39,11 +39,12 @@ export function getStoredClientId() {
     return null
 }
 
-// Save Client ID
-export function saveClientId(clientId) {
+// Save Client ID and optional username
+export function saveClientId(clientId, username = null) {
     try {
         const config = {
             cid: encode(clientId),
+            username: username || null,
             savedAt: Date.now()
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
@@ -52,6 +53,20 @@ export function saveClientId(clientId) {
         console.error('Error saving config:', e)
         return false
     }
+}
+
+// Get stored username
+export function getStoredUsername() {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+            const config = JSON.parse(stored)
+            return config.username || null
+        }
+    } catch (e) {
+        console.error('Error reading username:', e)
+    }
+    return null
 }
 
 // Clear stored Client ID
@@ -105,5 +120,6 @@ export default {
     clearClientId,
     hasClientId,
     getActiveClientId,
-    validateClientIdFormat
+    validateClientIdFormat,
+    getStoredUsername
 }

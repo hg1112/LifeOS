@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useGoogleAuth } from './useGoogleAuth'
+import { getStoredUsername } from '../utils/clientIdStorage'
 
 const FOLDER_NAME = 'LifeOS'
 const JOURNAL_FOLDER = 'journal'
@@ -59,8 +60,9 @@ export function useGoogleDrive() {
                 rootFolder = await createFolder(token, FOLDER_NAME, 'root')
             }
 
-            // Find or create user-specific subfolder (based on email)
-            const userFolderName = user?.email?.split('@')[0] || user?.id || 'default'
+            // Find or create user-specific subfolder
+            // Priority: user email prefix > stored username > user id > 'default'
+            const userFolderName = user?.email?.split('@')[0] || getStoredUsername() || user?.id || 'default'
             console.log('[Drive] Looking for user folder:', userFolderName, 'in', rootFolder.id)
             let userFolder = await findFolder(token, userFolderName, rootFolder.id)
             console.log('[Drive] User folder result:', userFolder)

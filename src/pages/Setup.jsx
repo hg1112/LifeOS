@@ -4,6 +4,7 @@ import './Setup.css'
 
 function Setup({ onComplete, signIn }) {
     const [clientId, setClientId] = useState('')
+    const [username, setUsername] = useState('')
     const [error, setError] = useState(null)
     const [isLoading, setIsLoading] = useState(false)
     const [status, setStatus] = useState('') // 'saving', 'signing-in'
@@ -12,7 +13,18 @@ function Setup({ onComplete, signIn }) {
         e.preventDefault()
         setError(null)
 
-        // Validate format
+        // Validate username
+        if (!username.trim()) {
+            setError('Please enter a username')
+            return
+        }
+
+        if (!/^[a-zA-Z0-9_-]+$/.test(username.trim())) {
+            setError('Username can only contain letters, numbers, underscores, and hyphens')
+            return
+        }
+
+        // Validate Client ID format
         const validation = validateClientIdFormat(clientId)
         if (!validation.valid) {
             setError(validation.error)
@@ -22,8 +34,8 @@ function Setup({ onComplete, signIn }) {
         setIsLoading(true)
         setStatus('saving')
 
-        // Save the Client ID
-        const saved = saveClientId(clientId.trim())
+        // Save the Client ID and username
+        const saved = saveClientId(clientId.trim(), username.trim().toLowerCase())
         if (!saved) {
             setError('Failed to save. Please try again.')
             setIsLoading(false)
@@ -56,34 +68,25 @@ function Setup({ onComplete, signIn }) {
                 <div className="setup-header">
                     <div className="setup-logo">🔧</div>
                     <h1>Setup LifeOS</h1>
-                    <p>Bring Your Own Google Client ID</p>
-                </div>
-
-                <div className="setup-instructions">
-                    <h2>How to get your Client ID:</h2>
-                    <ol>
-                        <li>
-                            Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>
-                        </li>
-                        <li>Create a new project (or select existing)</li>
-                        <li>
-                            Enable these APIs:
-                            <ul>
-                                <li>Google Drive API</li>
-                                <li>Google Calendar API</li>
-                            </ul>
-                        </li>
-                        <li>Go to <strong>Credentials</strong> → <strong>Create Credentials</strong> → <strong>OAuth client ID</strong></li>
-                        <li>Choose <strong>Web application</strong></li>
-                        <li>
-                            Add <strong>Authorized JavaScript origins</strong>:
-                            <code>{window.location.origin}</code>
-                        </li>
-                        <li>Copy the <strong>Client ID</strong> and paste below</li>
-                    </ol>
+                    <p>Configure your personal journal</p>
                 </div>
 
                 <form className="setup-form" onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label htmlFor="username">Your Username</label>
+                        <input
+                            id="username"
+                            type="text"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            placeholder="e.g., harish"
+                            disabled={isLoading}
+                            autoComplete="off"
+                            spellCheck="false"
+                        />
+                        <span className="form-hint">Used to create your personal folder in Google Drive</span>
+                    </div>
+
                     <div className="form-group">
                         <label htmlFor="clientId">Google OAuth Client ID</label>
                         <input
@@ -96,20 +99,26 @@ function Setup({ onComplete, signIn }) {
                             autoComplete="off"
                             spellCheck="false"
                         />
-                        {error && <p className="form-error">{error}</p>}
+                        <span className="form-hint">
+                            <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">
+                                Get from Google Cloud Console
+                            </a>
+                        </span>
                     </div>
+
+                    {error && <p className="form-error">{error}</p>}
 
                     <button
                         type="submit"
                         className="btn btn-primary btn-lg"
-                        disabled={isLoading || !clientId.trim()}
+                        disabled={isLoading || !clientId.trim() || !username.trim()}
                     >
                         {getButtonText()}
                     </button>
                 </form>
 
                 <div className="setup-note">
-                    <p>🔒 Your Client ID is stored locally on this device only.</p>
+                    <p>🔒 Your data is stored locally and in your Google Drive only.</p>
                     <p>We never send it to any server.</p>
                 </div>
             </div>

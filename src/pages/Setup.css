@@ -153,6 +153,22 @@
     margin-top: var(--space-2);
 }
 
+.form-hint {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    margin-top: var(--space-2);
+}
+
+.form-hint a {
+    color: var(--color-accent-primary);
+    text-decoration: none;
+}
+
+.form-hint a:hover {
+    text-decoration: underline;
+}
+
 .setup-form .btn {
     width: 100%;
     padding: var(--space-4);
