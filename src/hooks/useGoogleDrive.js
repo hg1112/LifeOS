@@ -4,6 +4,7 @@ import { getStoredUsername } from '../utils/clientIdStorage'
 
 const FOLDER_NAME = 'LifeOS'
 const JOURNAL_FOLDER = 'journal'
+const NOTES_FOLDER = 'notes'
 const TASKS_FILE = 'tasks.json'
 const SETTINGS_FILE = 'settings.json'
 
@@ -14,7 +15,8 @@ export function useGoogleDrive() {
     const [folders, setFolders] = useState({
         root: null,
         user: null,
-        journal: null
+        journal: null,
+        notes: null
     })
 
     // Cache for file IDs to prevent duplicate creation (race condition fix)
@@ -30,7 +32,7 @@ export function useGoogleDrive() {
         if (currentUserEmail.current !== userEmail) {
             console.log('[Drive] User changed, clearing folder cache:', currentUserEmail.current, '->', userEmail)
             currentUserEmail.current = userEmail
-            setFolders({ root: null, user: null, journal: null })
+            setFolders({ root: null, user: null, journal: null, notes: null })
             fileIdCache.current = {}
         }
     }, [user?.email])
@@ -80,10 +82,20 @@ export function useGoogleDrive() {
                 journalFolder = await createFolder(token, JOURNAL_FOLDER, userFolder.id)
             }
 
+            // Find or create notes subfolder inside user folder
+            console.log('[Drive] Looking for notes folder in user folder', userFolder.id)
+            let notesFolder = await findFolder(token, NOTES_FOLDER, userFolder.id)
+            console.log('[Drive] Notes folder result:', notesFolder)
+            if (!notesFolder) {
+                console.log('[Drive] Creating notes folder...')
+                notesFolder = await createFolder(token, NOTES_FOLDER, userFolder.id)
+            }
+
             const folderIds = {
                 root: rootFolder.id,
                 user: userFolder.id,
-                journal: journalFolder.id
+                journal: journalFolder.id,
+                notes: notesFolder.id
             }
 
             console.log('[Drive] Initialized folders:', folderIds)
@@ -202,6 +214,169 @@ export function useGoogleDrive() {
         return data.files || []
     }, [getAccessToken, user, folders.journal, initializeFolders])
 
+    // Save note (each note is a .md file with metadata in frontmatter)
+    const saveNote = useCallback(async (note) => {
+        if (user?.isDemo) {
+            console.log('Demo mode - note saved locally only')
+            return { id: `demo-${note.id}`, name: `${note.id}.md` }
+        }
+
+        const token = getAccessToken()
+        if (!token) throw new Error('Not authenticated')
+
+        const folderId = folders.notes || (await initializeFolders()).notes
+        const fileName = `${note.id}.md`
+        const cacheKey = `note:${note.id}`
+
+        // Create markdown content with frontmatter metadata
+        const content = `---
+title: ${note.title}
+folder: ${note.folder || 'root'}
+createdAt: ${note.createdAt}
+updatedAt: ${note.updatedAt}
+---
+
+${note.content}`
+
+        // Wait for any pending save for this note to complete
+        if (pendingSaves.current[cacheKey]) {
+            await pendingSaves.current[cacheKey]
+        }
+
+        let fileId = fileIdCache.current[cacheKey]
+
+        if (!fileId) {
+            const existingFile = await findFile(token, fileName, folderId)
+            if (existingFile) {
+                fileId = existingFile.id
+                fileIdCache.current[cacheKey] = fileId
+            }
+        }
+
+        const savePromise = (async () => {
+            try {
+                if (fileId) {
+                    return await updateFile(token, fileId, content)
+                } else {
+                    const newFile = await createFile(token, fileName, content, folderId, 'text/markdown')
+                    fileIdCache.current[cacheKey] = newFile.id
+                    return newFile
+                }
+            } finally {
+                delete pendingSaves.current[cacheKey]
+            }
+        })()
+
+        pendingSaves.current[cacheKey] = savePromise
+        return savePromise
+    }, [getAccessToken, user, folders.notes, initializeFolders])
+
+    // Load single note
+    const loadNote = useCallback(async (noteId) => {
+        if (user?.isDemo) return null
+
+        const token = getAccessToken()
+        if (!token) throw new Error('Not authenticated')
+
+        const folderId = folders.notes || (await initializeFolders()).notes
+        const fileName = `${noteId}.md`
+
+        const file = await findFile(token, fileName, folderId)
+        if (!file) return null
+
+        const content = await downloadFile(token, file.id)
+        return parseNoteContent(noteId, content)
+    }, [getAccessToken, user, folders.notes, initializeFolders])
+
+    // Delete note from Drive
+    const deleteNoteFromDrive = useCallback(async (noteId) => {
+        if (user?.isDemo) return
+
+        const token = getAccessToken()
+        if (!token) throw new Error('Not authenticated')
+
+        const folderId = folders.notes || (await initializeFolders()).notes
+        const fileName = `${noteId}.md`
+        const cacheKey = `note:${noteId}`
+
+        const file = await findFile(token, fileName, folderId)
+        if (file) {
+            await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            delete fileIdCache.current[cacheKey]
+        }
+    }, [getAccessToken, user, folders.notes, initializeFolders])
+
+    // List all notes
+    const listNotes = useCallback(async () => {
+        if (user?.isDemo) return []
+
+        const token = getAccessToken()
+        if (!token) throw new Error('Not authenticated')
+
+        const folderId = folders.notes || (await initializeFolders()).notes
+        console.log('[Drive] Listing notes in folder:', folderId)
+
+        const query = `'${folderId}' in parents and name contains '.md' and trashed=false`
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)`
+
+        const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+
+        if (!response.ok) throw new Error('Failed to list notes')
+
+        const data = await response.json()
+        const files = data.files || []
+        console.log('[Drive] Found notes:', files.length)
+
+        // Load each note's content
+        const notes = await Promise.all(files.map(async (file) => {
+            const content = await downloadFile(token, file.id)
+            const noteId = file.name.replace('.md', '')
+            return parseNoteContent(noteId, content)
+        }))
+
+        return notes.filter(n => n !== null)
+    }, [getAccessToken, user, folders.notes, initializeFolders])
+
+    // Parse note content from markdown with frontmatter
+    const parseNoteContent = (noteId, rawContent) => {
+        if (!rawContent) return null
+
+        const frontmatterMatch = rawContent.match(/^---\n([\s\S]*?)\n---\n\n?([\s\S]*)$/)
+        if (!frontmatterMatch) {
+            // No frontmatter, treat entire content as note content
+            return {
+                id: noteId,
+                title: 'Untitled',
+                content: rawContent,
+                folder: 'root',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }
+        }
+
+        const frontmatter = frontmatterMatch[1]
+        const content = frontmatterMatch[2]
+
+        const getValue = (key) => {
+            const match = frontmatter.match(new RegExp(`^${key}:\\s*(.*)$`, 'm'))
+            return match ? match[1].trim() : null
+        }
+
+        return {
+            id: noteId,
+            title: getValue('title') || 'Untitled',
+            content: content,
+            folder: getValue('folder') || 'root',
+            createdAt: getValue('createdAt') || new Date().toISOString(),
+            updatedAt: getValue('updatedAt') || new Date().toISOString()
+        }
+    }
+
     // Save tasks
     const saveTasks = useCallback(async (tasks) => {
         if (user?.isDemo) {
@@ -279,6 +454,10 @@ export function useGoogleDrive() {
         saveJournalEntry,
         loadJournalEntry,
         listJournalEntries,
+        saveNote,
+        loadNote,
+        deleteNoteFromDrive,
+        listNotes,
         saveTasks,
         loadTasks
     }

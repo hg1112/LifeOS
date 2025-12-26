@@ -31,6 +31,9 @@ function App() {
     saveJournalEntry,
     loadJournalEntry,
     listJournalEntries,
+    saveNote: saveNoteToDrive,
+    deleteNoteFromDrive,
+    listNotes: listNotesFromDrive,
     saveTasks,
     loadTasks,
     initializeFolders,
@@ -107,6 +110,12 @@ function App() {
           originalTasksRef.current = JSON.stringify(tasksData.tasks)
         }
 
+        // Load notes from Drive
+        const notesData = await listNotesFromDrive()
+        if (notesData && notesData.length > 0) {
+          setNotes(notesData)
+        }
+
         setDataLoaded(true)
         setSyncStatus('synced')
       } catch (error) {
@@ -119,7 +128,7 @@ function App() {
     }
 
     loadDataFromDrive()
-  }, [isAuthenticated, user, dataLoaded, initializeFolders, listJournalEntries, loadJournalEntry, loadTasks])
+  }, [isAuthenticated, user, dataLoaded, initializeFolders, listJournalEntries, loadJournalEntry, loadTasks, listNotesFromDrive])
 
   // Load demo data if not authenticated or in demo mode
   useEffect(() => {
@@ -399,18 +408,39 @@ function App() {
     })
   }, [syncTasksToDriver])
 
-  // Notes operations
-  const addNote = (note) => {
+  // Notes operations - sync to Drive
+  const addNote = useCallback((note) => {
     setNotes(prev => [note, ...prev])
-  }
+    // Save to Drive
+    if (isAuthenticated && !user?.isDemo) {
+      saveNoteToDrive(note).catch(err => console.error('Failed to save note to Drive:', err))
+    }
+  }, [isAuthenticated, user, saveNoteToDrive])
 
-  const updateNote = (id, updates) => {
-    setNotes(prev => prev.map(note => note.id === id ? { ...note, ...updates } : note))
-  }
+  const updateNote = useCallback((id, updates) => {
+    setNotes(prev => {
+      const updated = prev.map(note => {
+        if (note.id === id) {
+          const newNote = { ...note, ...updates }
+          // Debounce save to Drive
+          if (isAuthenticated && !user?.isDemo) {
+            saveNoteToDrive(newNote).catch(err => console.error('Failed to save note to Drive:', err))
+          }
+          return newNote
+        }
+        return note
+      })
+      return updated
+    })
+  }, [isAuthenticated, user, saveNoteToDrive])
 
-  const deleteNote = (id) => {
+  const deleteNote = useCallback((id) => {
     setNotes(prev => prev.filter(note => note.id !== id))
-  }
+    // Delete from Drive
+    if (isAuthenticated && !user?.isDemo) {
+      deleteNoteFromDrive(id).catch(err => console.error('Failed to delete note from Drive:', err))
+    }
+  }, [isAuthenticated, user, deleteNoteFromDrive])
 
   // Drawings operations
   const saveDrawing = (drawing) => {
