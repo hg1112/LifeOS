@@ -46,7 +46,7 @@ export function useGoogleDrive() {
             }
 
             // Find or create user-specific subfolder (based on email)
-            const userFolderName = user.email?.split('@')[0] || user.id || 'default'
+            const userFolderName = user?.email?.split('@')[0] || user?.id || 'default'
             console.log('[Drive] Looking for user folder:', userFolderName, 'in', rootFolder.id)
             let userFolder = await findFolder(token, userFolderName, rootFolder.id)
             console.log('[Drive] User folder result:', userFolder)
