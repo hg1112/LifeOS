@@ -6,6 +6,7 @@ const FOLDER_NAME = 'LifeOS'
 const JOURNAL_FOLDER = 'journal'
 const NOTES_FOLDER = 'notes'
 const TASKS_FILE = 'tasks.json'
+const METADATA_FILE = 'metadata.json'
 const SETTINGS_FILE = 'settings.json'
 
 export function useGoogleDrive() {
@@ -447,6 +448,59 @@ ${note.content}`
         return parsed
     }, [getAccessToken, user, folders.user, initializeFolders])
 
+    // Save metadata index to Drive
+    const saveMetadata = useCallback(async (metadata) => {
+        if (user?.isDemo) {
+            console.log('[Drive] Demo mode - metadata saved locally only')
+            return
+        }
+
+        const token = getAccessToken()
+        if (!token) throw new Error('Not authenticated')
+
+        const folderId = folders.user || (await initializeFolders()).user
+        const content = JSON.stringify(metadata, null, 2)
+        const cacheKey = 'metadata'
+
+        let fileId = fileIdCache.current[cacheKey]
+        if (!fileId) {
+            const existingFile = await findFile(token, METADATA_FILE, folderId)
+            if (existingFile) {
+                fileId = existingFile.id
+                fileIdCache.current[cacheKey] = fileId
+            }
+        }
+
+        if (fileId) {
+            await updateFile(token, fileId, content)
+        } else {
+            const newFile = await createFile(token, METADATA_FILE, content, folderId, 'application/json')
+            fileIdCache.current[cacheKey] = newFile.id
+        }
+
+        console.log('[Drive] Metadata saved to Drive')
+    }, [getAccessToken, user, folders.user, initializeFolders])
+
+    // Load metadata index from Drive
+    const loadMetadata = useCallback(async () => {
+        if (user?.isDemo) return null
+
+        const token = getAccessToken()
+        if (!token) throw new Error('Not authenticated')
+
+        const folderId = folders.user || (await initializeFolders()).user
+        const file = await findFile(token, METADATA_FILE, folderId)
+
+        if (!file) {
+            console.log('[Drive] No metadata file found')
+            return null
+        }
+
+        const content = await downloadFile(token, file.id)
+        console.log('[Drive] Metadata loaded from Drive')
+        return JSON.parse(content)
+    }, [getAccessToken, user, folders.user, initializeFolders])
+
     return {
         isLoading,
         error,
@@ -459,7 +513,9 @@ ${note.content}`
         deleteNoteFromDrive,
         listNotes,
         saveTasks,
-        loadTasks
+        loadTasks,
+        saveMetadata,
+        loadMetadata
     }
 }
 

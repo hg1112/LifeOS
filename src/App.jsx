@@ -10,6 +10,8 @@ import Login from './pages/Login'
 import Setup from './pages/Setup'
 import { useGoogleAuth } from './hooks/useGoogleAuth'
 import { useGoogleDrive } from './hooks/useGoogleDrive'
+import { useDatabase } from './hooks/useDatabase'
+import { useSearch } from './hooks/useSearch'
 import { hasClientId } from './utils/clientIdStorage'
 import './App.css'
 
@@ -17,6 +19,7 @@ import './App.css'
 export const AuthContext = createContext(null)
 export const ThemeContext = createContext(null)
 export const DataContext = createContext(null)
+export const SearchContext = createContext(null)
 
 function App() {
   const [theme, setTheme] = useState(() => {
@@ -36,10 +39,33 @@ function App() {
     listNotes: listNotesFromDrive,
     saveTasks,
     loadTasks,
+    saveMetadata,
+    loadMetadata,
     initializeFolders,
     isLoading: isDriveLoading,
     error: driveError
   } = useGoogleDrive()
+
+  // Database and search hooks
+  const {
+    isReady: isDbReady,
+    syncAllToDb,
+    exportDbMetadata,
+    saveNoteToDb,
+    deleteNoteFromDb,
+    saveTaskToDb,
+    deleteTaskFromDb,
+    saveJournalToDb
+  } = useDatabase()
+
+  const {
+    search,
+    isIndexReady,
+    addToIndex,
+    updateInIndex,
+    removeFromIndex,
+    rebuildIndex
+  } = useSearch()
 
   // Journal, tasks, notes, and drawings data state
   const [journalEntries, setJournalEntries] = useState({})
@@ -60,7 +86,8 @@ function App() {
 
   // Refs for debouncing
   const journalSaveTimeoutRef = useRef({})
-  const tasksSaveTimeoutRef = useRef(null)
+  const tasksSaveTimeoutRef = useRef({})
+  const metadataSaveTimeoutRef = useRef(null)
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -129,6 +156,57 @@ function App() {
 
     loadDataFromDrive()
   }, [isAuthenticated, user, dataLoaded, initializeFolders, listJournalEntries, loadJournalEntry, loadTasks, listNotesFromDrive])
+
+  // Sync loaded data to IndexedDB and rebuild search index
+  useEffect(() => {
+    if (!dataLoaded || !isDbReady) return
+
+    const syncToDb = async () => {
+      try {
+        console.log('[App] Syncing data to IndexedDB...')
+        await syncAllToDb(notes, tasks, journalEntries)
+        console.log('[App] Data synced to IndexedDB, rebuilding search index...')
+        await rebuildIndex()
+        console.log('[App] Search index rebuilt')
+      } catch (err) {
+        console.error('[App] Failed to sync to IndexedDB:', err)
+      }
+    }
+
+    syncToDb()
+  }, [dataLoaded, isDbReady, notes.length, tasks.length, Object.keys(journalEntries).length])
+
+  // Debounced metadata sync to Drive (every 2 minutes)
+  const syncMetadataToDrive = useCallback(async () => {
+    if (!isAuthenticated || user?.isDemo) return
+
+    try {
+      const metadata = await exportDbMetadata()
+      await saveMetadata(metadata)
+    } catch (err) {
+      console.error('[App] Failed to sync metadata to Drive:', err)
+    }
+  }, [isAuthenticated, user, exportDbMetadata, saveMetadata])
+
+  // Schedule metadata sync
+  useEffect(() => {
+    if (!dataLoaded || !isAuthenticated || user?.isDemo) return
+
+    // Sync immediately after data loads
+    const initialSync = setTimeout(() => {
+      syncMetadataToDrive()
+    }, 5000) // Wait 5 seconds after load
+
+    // Then sync every 2 minutes
+    const interval = setInterval(() => {
+      syncMetadataToDrive()
+    }, 120000)
+
+    return () => {
+      clearTimeout(initialSync)
+      clearInterval(interval)
+    }
+  }, [dataLoaded, isAuthenticated, user, syncMetadataToDrive])
 
   // Load demo data if not authenticated or in demo mode
   useEffect(() => {
@@ -491,7 +569,10 @@ function App() {
           refreshSingleEntry,
           entryHasUnsavedChanges,
           refreshTasks,
-          tasksDirty
+          tasksDirty,
+          // Search
+          search,
+          isIndexReady
         }}>
           {/* Show Setup if no Client ID configured */}
           {!clientIdConfigured ? (

@@ -5,7 +5,7 @@ import './GlobalSearch.css'
 
 function GlobalSearch({ isOpen, onClose }) {
     const navigate = useNavigate()
-    const { journalEntries, notes, tasks } = useContext(DataContext)
+    const { journalEntries, notes, tasks, search, isIndexReady } = useContext(DataContext)
     const [query, setQuery] = useState('')
     const inputRef = useRef(null)
 
@@ -27,7 +27,52 @@ function GlobalSearch({ isOpen, onClose }) {
 
         const q = query.toLowerCase()
 
-        // Search journal entries
+        // Try MiniSearch first if index is ready
+        if (isIndexReady && search) {
+            try {
+                const searchResults = search(query, { limit: 15 })
+
+                const journals = searchResults
+                    .filter(r => r.type === 'journal')
+                    .slice(0, 4)
+                    .map(r => ({
+                        id: r.id,
+                        type: 'journal',
+                        title: formatDate(r.id),
+                        date: r.id,
+                        score: r.score
+                    }))
+
+                const noteResults = searchResults
+                    .filter(r => r.type === 'note')
+                    .slice(0, 4)
+                    .map(r => ({
+                        id: r.id,
+                        type: 'note',
+                        title: r.title,
+                        folder: r.folder,
+                        score: r.score
+                    }))
+
+                const taskResults = searchResults
+                    .filter(r => r.type === 'task')
+                    .slice(0, 4)
+                    .map(r => ({
+                        id: r.id,
+                        type: 'task',
+                        title: r.title,
+                        status: r.status || 'backlog',
+                        priority: r.priority,
+                        score: r.score
+                    }))
+
+                return { journals, notes: noteResults, tasks: taskResults }
+            } catch (err) {
+                console.error('[Search] MiniSearch failed, falling back to in-memory:', err)
+            }
+        }
+
+        // Fallback to in-memory search
         const journalResults = Object.entries(journalEntries)
             .filter(([date, entry]) => entry.content?.toLowerCase().includes(q))
             .map(([date, entry]) => ({
@@ -39,7 +84,6 @@ function GlobalSearch({ isOpen, onClose }) {
             }))
             .slice(0, 4)
 
-        // Search notes
         const noteResults = notes
             .filter(note =>
                 note.title?.toLowerCase().includes(q) ||
@@ -54,7 +98,6 @@ function GlobalSearch({ isOpen, onClose }) {
             }))
             .slice(0, 4)
 
-        // Search tasks
         const taskResults = tasks
             .filter(task => task.title?.toLowerCase().includes(q))
             .map(task => ({
@@ -68,7 +111,7 @@ function GlobalSearch({ isOpen, onClose }) {
             .slice(0, 4)
 
         return { journals: journalResults, notes: noteResults, tasks: taskResults }
-    }, [query, journalEntries, notes, tasks])
+    }, [query, journalEntries, notes, tasks, search, isIndexReady])
 
     const totalResults = results.journals.length + results.notes.length + results.tasks.length
 
