@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useGoogleAuth } from './useGoogleAuth'
 
 const FOLDER_NAME = 'LifeOS'
@@ -12,6 +12,7 @@ export function useGoogleDrive() {
     const [error, setError] = useState(null)
     const [folders, setFolders] = useState({
         root: null,
+        user: null,
         journal: null
     })
 
@@ -19,6 +20,19 @@ export function useGoogleDrive() {
     const fileIdCache = useRef({})
     // Track pending saves to prevent concurrent creates
     const pendingSaves = useRef({})
+    // Track current user to detect user changes
+    const currentUserEmail = useRef(null)
+
+    // Clear folder cache when user changes
+    useEffect(() => {
+        const userEmail = user?.email || null
+        if (currentUserEmail.current !== userEmail) {
+            console.log('[Drive] User changed, clearing folder cache:', currentUserEmail.current, '->', userEmail)
+            currentUserEmail.current = userEmail
+            setFolders({ root: null, user: null, journal: null })
+            fileIdCache.current = {}
+        }
+    }, [user?.email])
 
     // Initialize folder structure
     const initializeFolders = useCallback(async () => {
