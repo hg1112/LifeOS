@@ -1,10 +1,18 @@
-import { useContext } from 'react'
+import { useContext, useState } from 'react'
 import { ThemeContext, AuthContext } from '../App'
+import { getTimezone, saveTimezone, COMMON_TIMEZONES } from '../utils/timezone'
 import './Settings.css'
 
 function Settings() {
     const { theme, toggleTheme } = useContext(ThemeContext)
     const { user, signOut, signIn } = useContext(AuthContext)
+    const [timezone, setTimezone] = useState(getTimezone)
+
+    const handleTimezoneChange = (e) => {
+        const newTimezone = e.target.value
+        setTimezone(newTimezone)
+        saveTimezone(newTimezone)
+    }
 
     return (
         <div className="settings-page">
@@ -75,6 +83,31 @@ function Settings() {
                                     Dark
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Regional Section */}
+                <section className="settings-section">
+                    <h2 className="section-title">Regional</h2>
+
+                    <div className="settings-card">
+                        <div className="setting-item">
+                            <div className="setting-info">
+                                <span className="setting-label">Timezone</span>
+                                <span className="setting-description">Used for journal dates and calendar</span>
+                            </div>
+                            <select
+                                className="timezone-select"
+                                value={timezone}
+                                onChange={handleTimezoneChange}
+                            >
+                                {COMMON_TIMEZONES.map(tz => (
+                                    <option key={tz.value} value={tz.value}>
+                                        {tz.label} ({tz.abbr})
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                 </section>

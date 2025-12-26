@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useGoogleAuth } from './useGoogleAuth'
 
 const FOLDER_NAME = 'LifeOS'
@@ -14,6 +14,11 @@ export function useGoogleDrive() {
         root: null,
         journal: null
     })
+
+    // Cache for file IDs to prevent duplicate creation (race condition fix)
+    const fileIdCache = useRef({})
+    // Track pending saves to prevent concurrent creates
+    const pendingSaves = useRef({})
 
     // Initialize folder structure
     const initializeFolders = useCallback(async () => {
@@ -70,17 +75,45 @@ export function useGoogleDrive() {
 
         const folderId = folders.journal || (await initializeFolders()).journal
         const fileName = `${date}.md`
+        const cacheKey = `journal:${date}`
 
-        // Check if file exists
-        const existingFile = await findFile(token, fileName, folderId)
-
-        if (existingFile) {
-            // Update existing file
-            return await updateFile(token, existingFile.id, content)
-        } else {
-            // Create new file
-            return await createFile(token, fileName, content, folderId, 'text/markdown')
+        // Wait for any pending save for this date to complete (prevents race condition)
+        if (pendingSaves.current[cacheKey]) {
+            await pendingSaves.current[cacheKey]
         }
+
+        // Check cache first (prevents duplicate creation)
+        let fileId = fileIdCache.current[cacheKey]
+
+        // If not in cache, check if file exists on Drive
+        if (!fileId) {
+            const existingFile = await findFile(token, fileName, folderId)
+            if (existingFile) {
+                fileId = existingFile.id
+                fileIdCache.current[cacheKey] = fileId
+            }
+        }
+
+        // Create a promise that other saves can wait on
+        const savePromise = (async () => {
+            try {
+                if (fileId) {
+                    // Update existing file
+                    return await updateFile(token, fileId, content)
+                } else {
+                    // Create new file and cache the ID
+                    const newFile = await createFile(token, fileName, content, folderId, 'text/markdown')
+                    fileIdCache.current[cacheKey] = newFile.id
+                    return newFile
+                }
+            } finally {
+                // Clear pending save
+                delete pendingSaves.current[cacheKey]
+            }
+        })()
+
+        pendingSaves.current[cacheKey] = savePromise
+        return savePromise
     }, [getAccessToken, user, folders.journal, initializeFolders])
 
     // Load journal entry

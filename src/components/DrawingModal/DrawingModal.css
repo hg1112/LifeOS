@@ -13,7 +13,7 @@
 
 .drawing-modal {
     width: 100%;
-    max-width: 1200px;
+    max-width: 1000px;
     height: 80vh;
     background-color: var(--color-bg-elevated);
     border-radius: var(--radius-xl);
@@ -42,34 +42,91 @@
     gap: var(--space-2);
 }
 
+/* Drawing Toolbar */
+.drawing-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border-primary);
+    flex-wrap: wrap;
+}
+
+.color-palette {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.color-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.color-btn:hover {
+    transform: scale(1.1);
+}
+
+.color-btn.active {
+    border-color: var(--color-accent-primary);
+    box-shadow: 0 0 0 2px var(--color-bg-elevated), 0 0 0 4px var(--color-accent-primary);
+}
+
+.stroke-width {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.stroke-width input[type="range"] {
+    width: 80px;
+    accent-color: var(--color-accent-primary);
+}
+
+.stroke-width span {
+    min-width: 35px;
+    text-align: right;
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 24px;
+    background-color: var(--color-border-secondary);
+}
+
+.tool-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 16px;
+    transition: all var(--transition-fast);
+}
+
+.tool-btn:hover {
+    background-color: var(--color-bg-tertiary);
+}
+
+.tool-btn.active {
+    background-color: var(--color-accent-tertiary);
+}
+
 .drawing-canvas-container {
     flex: 1;
     position: relative;
     overflow: hidden;
-}
-
-.drawing-canvas-container .excalidraw {
-    height: 100% !important;
-    width: 100% !important;
-}
-
-/* Hide Excalidraw library sidebar/shapes panel */
-.drawing-canvas-container .layer-ui__sidebar {
-    display: none !important;
-}
-
-.drawing-canvas-container .layer-ui__sidebar-body {
-    display: none !important;
-}
-
-/* Hide library button */
-.drawing-canvas-container [aria-label="Library"] {
-    display: none !important;
-}
-
-/* Ensure canvas fills the space */
-.drawing-canvas-container .excalidraw-container {
-    height: 100% !important;
+    background-color: #1e1e2e;
 }
 
 .loading-canvas {
@@ -95,5 +152,14 @@
 
     .drawing-modal-header h2 {
         font-size: var(--font-size-base);
+    }
+
+    .drawing-toolbar {
+        padding: var(--space-2);
+        gap: var(--space-2);
+    }
+
+    .stroke-width input[type="range"] {
+        width: 60px;
     }
 }

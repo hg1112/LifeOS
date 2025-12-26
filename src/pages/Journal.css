@@ -267,6 +267,16 @@
     background-color: rgba(245, 158, 11, 0.1) !important;
 }
 
+.sync-error-msg {
+    font-size: var(--font-size-xs);
+    color: var(--color-error);
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: help;
+}
+
 /* Rich Toolbar */
 .rich-toolbar {
     display: flex;

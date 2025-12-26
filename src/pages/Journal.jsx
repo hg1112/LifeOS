@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect, useRef, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { DataContext } from '../App'
+import { getCurrentDate, formatDateShort } from '../utils/timezone'
 import './Journal.css'
 
 // Lazy load DrawingModal
@@ -9,7 +10,7 @@ const DrawingModal = lazy(() => import('../components/DrawingModal/DrawingModal'
 function Journal() {
     const { date } = useParams()
     const navigate = useNavigate()
-    const { journalEntries, updateJournalEntry, syncStatus, drawings, saveDrawing, forceSync, hasUnsavedChanges } = useContext(DataContext)
+    const { journalEntries, updateJournalEntry, syncStatus, syncError, drawings, saveDrawing, forceSync, hasUnsavedChanges } = useContext(DataContext)
     const textareaRef = useRef(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -18,7 +19,7 @@ function Journal() {
     const [showDrawingModal, setShowDrawingModal] = useState(false)
     const [editingDrawing, setEditingDrawing] = useState(null)
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getCurrentDate() // Uses configured timezone
     const currentDate = date || today
 
     const entry = journalEntries[currentDate] || {
@@ -170,9 +171,19 @@ function Journal() {
                         <button className="btn btn-ghost btn-icon" onClick={() => goToDate(1)} title="Next day"><ChevronRight /></button>
                     </div>
                     <div className="journal-actions">
-                        <span className={`sync-badge ${syncStatus} ${hasUnsavedChanges ? 'has-changes' : ''}`}>
-                            {syncStatus === 'syncing' ? 'Saving...' : hasUnsavedChanges ? '●' : '✓'}
+                        <span
+                            className={`sync-badge ${syncStatus} ${hasUnsavedChanges ? 'has-changes' : ''}`}
+                            title={syncError || (syncStatus === 'error' ? 'Sync error' : '')}
+                        >
+                            {syncStatus === 'syncing' ? 'Saving...' :
+                                syncStatus === 'error' ? '⚠️' :
+                                    hasUnsavedChanges ? '●' : '✓'}
                         </span>
+                        {syncStatus === 'error' && syncError && (
+                            <span className="sync-error-msg" title={syncError}>
+                                {syncError.length > 20 ? syncError.substring(0, 20) + '...' : syncError}
+                            </span>
+                        )}
                         {hasUnsavedChanges && (
                             <button
                                 className="btn btn-ghost btn-sm force-save-btn"
@@ -341,11 +352,6 @@ function FocusIcon() {
 function formatDate(dateString) {
     const date = new Date(dateString + 'T12:00:00')
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-function formatDateShort(dateString) {
-    const date = new Date(dateString + 'T12:00:00')
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 export default Journal

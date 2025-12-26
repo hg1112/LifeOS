@@ -7,8 +7,10 @@ import Calendar from './pages/Calendar'
 import Notes from './pages/Notes'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
+import Setup from './pages/Setup'
 import { useGoogleAuth } from './hooks/useGoogleAuth'
 import { useGoogleDrive } from './hooks/useGoogleDrive'
+import { hasClientId } from './utils/clientIdStorage'
 import './App.css'
 
 // Create contexts
@@ -21,7 +23,10 @@ function App() {
     return document.documentElement.getAttribute('data-theme') || 'light'
   })
 
-  const { user, isLoading, isAuthenticated, signIn, signOut } = useGoogleAuth()
+  // Check if Client ID is configured
+  const [clientIdConfigured, setClientIdConfigured] = useState(() => hasClientId())
+
+  const { user, isLoading, isAuthenticated, authError, signIn, signOut } = useGoogleAuth()
   const {
     saveJournalEntry,
     loadJournalEntry,
@@ -39,6 +44,7 @@ function App() {
   const [notes, setNotes] = useState([])
   const [drawings, setDrawings] = useState([])
   const [syncStatus, setSyncStatus] = useState('idle')
+  const [syncError, setSyncError] = useState(null)
   const [dataLoaded, setDataLoaded] = useState(false)
 
   // Track dirty state for change detection
@@ -105,6 +111,7 @@ function App() {
         setSyncStatus('synced')
       } catch (error) {
         console.error('Error loading data from Drive:', error)
+        setSyncError(error.message || 'Failed to load from Google Drive')
         setSyncStatus('error')
         // Still mark as loaded so we don't keep retrying
         setDataLoaded(true)
@@ -353,7 +360,7 @@ function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, authError, signIn, signOut }}>
       <ThemeContext.Provider value={{ theme, toggleTheme }}>
         <DataContext.Provider value={{
           journalEntries,
@@ -372,25 +379,31 @@ function App() {
           loadDrawing,
           deleteDrawing,
           syncStatus,
+          syncError,
           isDriveLoading,
           driveError,
           forceSync,
           hasUnsavedChanges
         }}>
-          <Routes>
-            <Route path="/login" element={
-              isAuthenticated ? <Navigate to="/" replace /> : <Login />
-            } />
-            <Route path="/" element={<AppLayout />}>
-              <Route index element={<Navigate to="/journal" replace />} />
-              <Route path="journal" element={<Journal />} />
-              <Route path="journal/:date" element={<Journal />} />
-              <Route path="tasks" element={<Tasks />} />
-              <Route path="notes" element={<Notes />} />
-              <Route path="calendar" element={<Calendar />} />
-              <Route path="settings" element={<Settings />} />
-            </Route>
-          </Routes>
+          {/* Show Setup if no Client ID configured */}
+          {!clientIdConfigured ? (
+            <Setup onComplete={() => setClientIdConfigured(true)} signIn={signIn} />
+          ) : (
+            <Routes>
+              <Route path="/login" element={
+                isAuthenticated ? <Navigate to="/" replace /> : <Login />
+              } />
+              <Route path="/" element={<AppLayout />}>
+                <Route index element={<Navigate to="/journal" replace />} />
+                <Route path="journal" element={<Journal />} />
+                <Route path="journal/:date" element={<Journal />} />
+                <Route path="tasks" element={<Tasks />} />
+                <Route path="notes" element={<Notes />} />
+                <Route path="calendar" element={<Calendar />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
+            </Routes>
+          )}
         </DataContext.Provider>
       </ThemeContext.Provider>
     </AuthContext.Provider>

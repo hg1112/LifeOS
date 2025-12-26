@@ -3,17 +3,20 @@ import { AuthContext } from '../App'
 import './Login.css'
 
 function Login() {
-    const { signIn, isLoading } = useContext(AuthContext)
+    const { signIn, isLoading, authError } = useContext(AuthContext)
     const [error, setError] = useState(null)
+    const [rememberMe, setRememberMe] = useState(true) // Default to remember
 
     const handleSignIn = async () => {
         setError(null)
         try {
-            await signIn()
+            await signIn(rememberMe)
         } catch (err) {
             setError(err.message || 'Failed to sign in')
         }
     }
+
+    const displayError = error || authError
 
     return (
         <div className="login-page">
@@ -60,7 +63,7 @@ function Login() {
                     </div>
                 </div>
 
-                {/* Sign in button */}
+                {/* Sign in section */}
                 <div className="login-actions">
                     <button
                         className="btn btn-google"
@@ -80,21 +83,30 @@ function Login() {
                         )}
                     </button>
 
-                    {error && (
-                        <p className="login-error">{error}</p>
+                    {/* Remember Me Checkbox */}
+                    <label className="remember-me-label">
+                        <input
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                        />
+                        <span className="remember-me-text">
+                            Remember this device for 7 days
+                        </span>
+                    </label>
+
+                    {displayError && (
+                        <p className="login-error">{displayError}</p>
                     )}
 
                     <p className="login-note">
-                        By signing in, you agree to let LifeOS access your Google Drive for data storage
-                        and Google Calendar for event sync.
+                        Sign in with your Google account to securely sync your journals and tasks to Google Drive.
                     </p>
                 </div>
 
-                {/* Demo mode link */}
-                <div className="login-demo">
-                    <button className="btn btn-ghost" onClick={handleSignIn}>
-                        Or try Demo Mode →
-                    </button>
+                {/* Privacy note */}
+                <div className="login-privacy">
+                    <p>🔒 Your data stays in your own Google Drive. We never store your content on our servers.</p>
                 </div>
             </div>
         </div>

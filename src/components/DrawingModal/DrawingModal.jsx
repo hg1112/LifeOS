@@ -1,67 +1,61 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
+import { useRef, useState } from 'react'
+import { ReactSketchCanvas } from 'react-sketch-canvas'
 import './DrawingModal.css'
 
-// Lazy load Excalidraw
-const Excalidraw = lazy(() =>
-    import('@excalidraw/excalidraw').then(module => ({ default: module.Excalidraw }))
-)
-
 function DrawingModal({ isOpen, onClose, onSave, initialData }) {
-    const [excalidrawAPI, setExcalidrawAPI] = useState(null)
+    const canvasRef = useRef(null)
     const [isEditing] = useState(!!initialData)
+    const [strokeColor, setStrokeColor] = useState('#ffffff')
+    const [strokeWidth, setStrokeWidth] = useState(4)
+    const [eraserMode, setEraserMode] = useState(false)
 
-    // Load initial data when editing
-    useEffect(() => {
-        if (initialData && excalidrawAPI) {
-            try {
-                excalidrawAPI.updateScene({
-                    elements: initialData.elements || [],
-                    appState: initialData.appState || {}
-                })
-            } catch (e) {
-                console.error('Failed to load drawing:', e)
-            }
-        }
-    }, [initialData, excalidrawAPI])
+    const colors = [
+        '#ffffff', '#ef4444', '#f97316', '#eab308',
+        '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'
+    ]
 
     const handleSave = async () => {
-        if (!excalidrawAPI) return
+        if (!canvasRef.current) return
 
         try {
-            // Get current scene elements
-            const sceneElements = excalidrawAPI.getSceneElements()
-            const appState = excalidrawAPI.getAppState()
+            // Export as base64 PNG
+            const base64Image = await canvasRef.current.exportImage('png')
 
-            // Export as PNG blob
-            const blob = await excalidrawAPI.exportToBlob({
-                mimeType: 'image/png',
-                quality: 0.9,
+            // Get the drawing paths for future editing
+            const paths = await canvasRef.current.exportPaths()
+
+            onSave({
+                id: initialData?.id || `drawing_${Date.now()}`,
+                image: base64Image,
+                paths: paths,
+                updatedAt: new Date().toISOString()
             })
-
-            // Convert to base64
-            const reader = new FileReader()
-            reader.onloadend = () => {
-                const base64Image = reader.result
-
-                // Save both the image and the scene data for future editing
-                onSave({
-                    id: initialData?.id || `drawing_${Date.now()}`,
-                    image: base64Image,
-                    elements: sceneElements,
-                    appState: {
-                        viewBackgroundColor: appState.viewBackgroundColor,
-                        zoom: appState.zoom,
-                        scrollX: appState.scrollX,
-                        scrollY: appState.scrollY,
-                    },
-                    updatedAt: new Date().toISOString()
-                })
-                onClose()
-            }
-            reader.readAsDataURL(blob)
+            onClose()
         } catch (error) {
             console.error('Failed to export drawing:', error)
             onClose()
+        }
+    }
+
+    const handleClear = () => {
+        canvasRef.current?.clearCanvas()
+    }
+
+    const handleUndo = () => {
+        canvasRef.current?.undo()
+    }
+
+    const handleRedo = () => {
+        canvasRef.current?.redo()
+    }
+
+    const toggleEraser = () => {
+        if (eraserMode) {
+            canvasRef.current?.eraseMode(false)
+            setEraserMode(false)
+        } else {
+            canvasRef.current?.eraseMode(true)
+            setEraserMode(true)
         }
     }
 
@@ -80,33 +74,65 @@ function DrawingModal({ isOpen, onClose, onSave, initialData }) {
                     </div>
                 </div>
 
-                <div className="drawing-canvas-container">
-                    <Suspense fallback={<div className="loading-canvas">Loading drawing canvas...</div>}>
-                        <Excalidraw
-                            excalidrawAPI={(api) => setExcalidrawAPI(api)}
-                            theme="dark"
-                            initialData={{
-                                elements: initialData?.elements || [],
-                                appState: {
-                                    viewBackgroundColor: '#1e1e2e',
-                                    ...(initialData?.appState || {})
-                                },
-                                libraryItems: []
-                            }}
-                            UIOptions={{
-                                canvasActions: {
-                                    loadScene: false,
-                                    saveAsImage: false,
-                                    export: false,
-                                    clearCanvas: true,
-                                },
-                                tools: {
-                                    image: false,
-                                },
-                            }}
-                            libraryReturnUrl=""
+                {/* Toolbar */}
+                <div className="drawing-toolbar">
+                    <div className="color-palette">
+                        {colors.map(color => (
+                            <button
+                                key={color}
+                                className={`color-btn ${strokeColor === color ? 'active' : ''}`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => {
+                                    setStrokeColor(color)
+                                    setEraserMode(false)
+                                    canvasRef.current?.eraseMode(false)
+                                }}
+                            />
+                        ))}
+                    </div>
+
+                    <div className="toolbar-divider" />
+
+                    <div className="stroke-width">
+                        <label>Size:</label>
+                        <input
+                            type="range"
+                            min="1"
+                            max="20"
+                            value={strokeWidth}
+                            onChange={(e) => setStrokeWidth(Number(e.target.value))}
                         />
-                    </Suspense>
+                        <span>{strokeWidth}px</span>
+                    </div>
+
+                    <div className="toolbar-divider" />
+
+                    <button
+                        className={`tool-btn ${eraserMode ? 'active' : ''}`}
+                        onClick={toggleEraser}
+                        title="Eraser"
+                    >
+                        🧹
+                    </button>
+                    <button className="tool-btn" onClick={handleUndo} title="Undo">↩️</button>
+                    <button className="tool-btn" onClick={handleRedo} title="Redo">↪️</button>
+                    <button className="tool-btn" onClick={handleClear} title="Clear">🗑️</button>
+                </div>
+
+                <div className="drawing-canvas-container">
+                    <ReactSketchCanvas
+                        ref={canvasRef}
+                        width="100%"
+                        height="100%"
+                        strokeWidth={strokeWidth}
+                        strokeColor={strokeColor}
+                        canvasColor="#1e1e2e"
+                        exportWithBackgroundImage={true}
+                        style={{
+                            border: 'none',
+                            borderRadius: '8px'
+                        }}
+                    />
                 </div>
             </div>
         </div>

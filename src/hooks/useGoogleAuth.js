@@ -1,15 +1,29 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { getActiveClientId } from '../utils/clientIdStorage'
 
-// Token refresh settings
-const TOKEN_TTL_MS = 55 * 60 * 1000 // 55 minutes (tokens expire in 60 min)
+// Session duration settings
+const TOKEN_TTL_SHORT_MS = 55 * 60 * 1000 // 55 minutes (default, tokens expire in 60 min)
+const TOKEN_TTL_LONG_MS = 7 * 24 * 60 * 60 * 1000 // 7 days (Remember Me)
 const TOKEN_STORAGE_KEY = 'lifeos-auth'
+const REMEMBER_ME_KEY = 'lifeos-remember'
 
 export function useGoogleAuth() {
     const [user, setUser] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [authError, setAuthError] = useState(null)
     const [accessToken, setAccessToken] = useState(null)
     const tokenClientRef = useRef(null)
     const refreshTimeoutRef = useRef(null)
+
+    // Check if "Remember Me" is enabled
+    const isRememberMe = useCallback(() => {
+        return localStorage.getItem(REMEMBER_ME_KEY) === 'true'
+    }, [])
+
+    // Get appropriate TTL based on Remember Me setting
+    const getSessionTTL = useCallback(() => {
+        return isRememberMe() ? TOKEN_TTL_LONG_MS : TOKEN_TTL_SHORT_MS
+    }, [isRememberMe])
 
     // Load saved session and check token validity
     useEffect(() => {
@@ -20,25 +34,27 @@ export function useGoogleAuth() {
                     const authData = JSON.parse(savedAuth)
                     const now = Date.now()
 
-                    // Check if token is still valid
-                    if (authData.expiresAt && authData.expiresAt > now) {
+                    // Check if session is still valid
+                    if (authData.sessionExpiresAt && authData.sessionExpiresAt > now) {
                         setUser(authData.user)
-                        setAccessToken(authData.token)
 
-                        // Schedule refresh before expiration
-                        const timeUntilRefresh = authData.expiresAt - now - (5 * 60 * 1000) // 5 min before expiry
-                        if (timeUntilRefresh > 0) {
-                            scheduleTokenRefresh(timeUntilRefresh)
+                        // Check if token is still valid
+                        if (authData.tokenExpiresAt && authData.tokenExpiresAt > now) {
+                            setAccessToken(authData.token)
+
+                            // Schedule refresh before token expiration
+                            const timeUntilRefresh = authData.tokenExpiresAt - now - (5 * 60 * 1000)
+                            if (timeUntilRefresh > 0) {
+                                scheduleTokenRefresh(timeUntilRefresh)
+                            } else {
+                                await silentRefresh()
+                            }
                         } else {
-                            // Token expiring soon, refresh now
+                            // Token expired but session valid - refresh token
                             await silentRefresh()
                         }
-                    } else if (authData.user) {
-                        // Token expired but we have user info - try silent refresh
-                        setUser(authData.user)
-                        await silentRefresh()
                     } else {
-                        // Clear invalid data
+                        // Session expired - clear everything
                         localStorage.removeItem(TOKEN_STORAGE_KEY)
                     }
                 }
@@ -64,30 +80,23 @@ export function useGoogleAuth() {
             clearTimeout(refreshTimeoutRef.current)
         }
 
-        console.log(`Token refresh scheduled in ${Math.round(delayMs / 60000)} minutes`)
+        const minutes = Math.round(delayMs / 60000)
+        if (minutes > 0) {
+            console.log(`Token refresh scheduled in ${minutes} minutes`)
+        }
 
         refreshTimeoutRef.current = setTimeout(async () => {
             console.log('Refreshing token...')
             await silentRefresh()
-        }, delayMs)
+        }, Math.max(delayMs, 1000)) // At least 1 second
     }, [])
 
     // Silent token refresh (no user interaction)
     const silentRefresh = useCallback(async () => {
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+        const clientId = getActiveClientId()
 
-        if (!clientId || clientId === 'YOUR_CLIENT_ID_HERE') {
-            // Demo mode - just extend the session
-            const savedAuth = localStorage.getItem(TOKEN_STORAGE_KEY)
-            if (savedAuth) {
-                const authData = JSON.parse(savedAuth)
-                if (authData.user?.isDemo) {
-                    authData.expiresAt = Date.now() + TOKEN_TTL_MS
-                    localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(authData))
-                    scheduleTokenRefresh(TOKEN_TTL_MS - 5 * 60 * 1000)
-                    return
-                }
-            }
+        if (!clientId) {
+            setAuthError('Google Client ID not configured.')
             return
         }
 
@@ -123,15 +132,18 @@ export function useGoogleAuth() {
             tokenClientRef.current.requestAccessToken({ prompt: '' })
         } catch (error) {
             console.error('Silent refresh error:', error)
+            setAuthError('Failed to refresh session. Please sign in again.')
         }
     }, [])
 
     // Handle successful token response
     const handleTokenResponse = useCallback(async (tokenResponse) => {
         const newToken = tokenResponse.access_token
-        const expiresAt = Date.now() + TOKEN_TTL_MS
+        const tokenExpiresAt = Date.now() + TOKEN_TTL_SHORT_MS // Tokens always expire in ~1 hour
+        const sessionTTL = getSessionTTL()
 
         setAccessToken(newToken)
+        setAuthError(null)
 
         // Get user info if we don't have it
         let currentUser = user
@@ -145,59 +157,52 @@ export function useGoogleAuth() {
                     id: userInfo.sub,
                     name: userInfo.name,
                     email: userInfo.email,
-                    picture: userInfo.picture,
-                    isDemo: false
+                    picture: userInfo.picture
                 }
                 setUser(currentUser)
             } catch (e) {
                 console.error('Error fetching user info:', e)
+                setAuthError('Failed to get user information')
                 return
             }
         }
 
-        // Save to localStorage with TTL
+        // Save to localStorage
+        const savedAuth = localStorage.getItem(TOKEN_STORAGE_KEY)
+        const existingSessionExpiry = savedAuth ? JSON.parse(savedAuth).sessionExpiresAt : null
+
         const authData = {
             user: currentUser,
             token: newToken,
-            expiresAt
+            tokenExpiresAt,
+            // Keep existing session expiry if valid, otherwise create new one
+            sessionExpiresAt: (existingSessionExpiry && existingSessionExpiry > Date.now())
+                ? existingSessionExpiry
+                : Date.now() + sessionTTL
         }
         localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(authData))
 
-        // Schedule next refresh
-        scheduleTokenRefresh(TOKEN_TTL_MS - 5 * 60 * 1000)
+        // Schedule next token refresh (5 min before token expiry)
+        scheduleTokenRefresh(TOKEN_TTL_SHORT_MS - 5 * 60 * 1000)
 
-        console.log('Token refreshed successfully, expires at:', new Date(expiresAt).toLocaleTimeString())
-    }, [user, scheduleTokenRefresh])
+        console.log('Token refreshed successfully, session expires:', new Date(authData.sessionExpiresAt).toLocaleString())
+    }, [user, scheduleTokenRefresh, getSessionTTL])
 
-    const signIn = useCallback(async () => {
+    // Sign in with Google
+    const signIn = useCallback(async (rememberMe = false) => {
         setIsLoading(true)
+        setAuthError(null)
 
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+        const clientId = getActiveClientId()
 
-        if (!clientId || clientId === 'YOUR_CLIENT_ID_HERE') {
-            // Demo mode
-            console.log('Google Client ID not configured - using demo mode')
-            const demoUser = {
-                id: 'demo-user',
-                name: 'Demo User',
-                email: 'demo@lifeos.app',
-                picture: null,
-                isDemo: true
-            }
-
-            const authData = {
-                user: demoUser,
-                token: 'demo-token',
-                expiresAt: Date.now() + TOKEN_TTL_MS
-            }
-
-            setUser(demoUser)
-            setAccessToken('demo-token')
-            localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(authData))
-            scheduleTokenRefresh(TOKEN_TTL_MS - 5 * 60 * 1000)
+        if (!clientId) {
             setIsLoading(false)
-            return demoUser
+            setAuthError('Google Client ID not configured. Please complete setup.')
+            throw new Error('Google Client ID not configured')
         }
+
+        // Save Remember Me preference
+        localStorage.setItem(REMEMBER_ME_KEY, rememberMe ? 'true' : 'false')
 
         try {
             await loadGoogleScript()
@@ -216,6 +221,7 @@ export function useGoogleAuth() {
                     callback: async (tokenResponse) => {
                         if (tokenResponse.error) {
                             setIsLoading(false)
+                            setAuthError(tokenResponse.error_description || tokenResponse.error)
                             reject(new Error(tokenResponse.error))
                             return
                         }
@@ -226,6 +232,7 @@ export function useGoogleAuth() {
                             resolve(user)
                         } catch (e) {
                             setIsLoading(false)
+                            setAuthError(e.message)
                             reject(e)
                         }
                     }
@@ -236,9 +243,10 @@ export function useGoogleAuth() {
         } catch (error) {
             console.error('Sign in error:', error)
             setIsLoading(false)
+            setAuthError(error.message || 'Failed to sign in')
             throw error
         }
-    }, [handleTokenResponse, scheduleTokenRefresh])
+    }, [handleTokenResponse])
 
     const signOut = useCallback(() => {
         // Clear refresh timer
@@ -248,7 +256,9 @@ export function useGoogleAuth() {
 
         setUser(null)
         setAccessToken(null)
+        setAuthError(null)
         localStorage.removeItem(TOKEN_STORAGE_KEY)
+        localStorage.removeItem(REMEMBER_ME_KEY)
         tokenClientRef.current = null
 
         // Revoke token if available
@@ -263,7 +273,7 @@ export function useGoogleAuth() {
             const savedAuth = localStorage.getItem(TOKEN_STORAGE_KEY)
             if (savedAuth) {
                 const authData = JSON.parse(savedAuth)
-                if (authData.expiresAt && authData.expiresAt > Date.now()) {
+                if (authData.tokenExpiresAt && authData.tokenExpiresAt > Date.now()) {
                     return authData.token
                 }
             }
@@ -280,7 +290,7 @@ export function useGoogleAuth() {
             if (savedAuth) {
                 const authData = JSON.parse(savedAuth)
                 const fiveMinutes = 5 * 60 * 1000
-                return authData.expiresAt && (authData.expiresAt - Date.now()) < fiveMinutes
+                return authData.tokenExpiresAt && (authData.tokenExpiresAt - Date.now()) < fiveMinutes
             }
         } catch (e) {
             // Ignore
@@ -288,15 +298,36 @@ export function useGoogleAuth() {
         return false
     }, [])
 
+    // Get session info
+    const getSessionInfo = useCallback(() => {
+        try {
+            const savedAuth = localStorage.getItem(TOKEN_STORAGE_KEY)
+            if (savedAuth) {
+                const authData = JSON.parse(savedAuth)
+                return {
+                    sessionExpiresAt: authData.sessionExpiresAt,
+                    tokenExpiresAt: authData.tokenExpiresAt,
+                    rememberMe: isRememberMe()
+                }
+            }
+        } catch (e) {
+            // Ignore
+        }
+        return null
+    }, [isRememberMe])
+
     return {
         user,
         isLoading,
+        authError,
         isAuthenticated: !!user,
         signIn,
         signOut,
         getAccessToken,
         isTokenExpiringSoon,
-        refreshToken: silentRefresh
+        refreshToken: silentRefresh,
+        getSessionInfo,
+        isRememberMe
     }
 }
 
@@ -313,7 +344,7 @@ function loadGoogleScript() {
         script.async = true
         script.defer = true
         script.onload = resolve
-        script.onerror = reject
+        script.onerror = () => reject(new Error('Failed to load Google Sign-In'))
         document.head.appendChild(script)
     })
 }

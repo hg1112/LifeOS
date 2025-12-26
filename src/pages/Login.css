@@ -174,14 +174,40 @@
     margin: 0;
 }
 
-/* Demo mode */
-.login-demo {
-    text-align: center;
-    margin-top: var(--space-6);
+/* Remember Me */
+.remember-me-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    user-select: none;
 }
 
-.login-demo .btn {
-    color: var(--color-accent-primary);
+.remember-me-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent-primary);
+    cursor: pointer;
+}
+
+.remember-me-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+/* Privacy Note */
+.login-privacy {
+    margin-top: var(--space-8);
+    padding: var(--space-4);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.login-privacy p {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin: 0;
 }
 
 /* Mobile Responsive */
