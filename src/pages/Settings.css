@@ -119,7 +119,7 @@
 /* Setting Item */
 .setting-item {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
     padding: var(--space-4);
@@ -146,6 +146,7 @@
     display: block;
     font-size: var(--font-size-sm);
     color: var(--color-text-tertiary);
+    line-height: 1.4;
 }
 
 /* Theme Switcher */
@@ -155,6 +156,7 @@
     background-color: var(--color-bg-tertiary);
     padding: var(--space-1);
     border-radius: var(--radius-lg);
+    flex-shrink: 0;
 }
 
 .theme-option {
@@ -192,7 +194,8 @@
     border-radius: var(--radius-md);
     color: var(--color-text-primary);
     cursor: pointer;
-    min-width: 200px;
+    min-width: 220px;
+    flex-shrink: 0;
     transition: all var(--transition-fast);
 }
 

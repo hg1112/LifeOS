@@ -45,17 +45,28 @@ export function useGoogleDrive() {
                 rootFolder = await createFolder(token, FOLDER_NAME, 'root')
             }
 
-            // Find or create journal subfolder
-            console.log('[Drive] Looking for journal folder in', rootFolder.id)
-            let journalFolder = await findFolder(token, JOURNAL_FOLDER, rootFolder.id)
+            // Find or create user-specific subfolder (based on email)
+            const userFolderName = user.email?.split('@')[0] || user.id || 'default'
+            console.log('[Drive] Looking for user folder:', userFolderName, 'in', rootFolder.id)
+            let userFolder = await findFolder(token, userFolderName, rootFolder.id)
+            console.log('[Drive] User folder result:', userFolder)
+            if (!userFolder) {
+                console.log('[Drive] Creating user folder:', userFolderName)
+                userFolder = await createFolder(token, userFolderName, rootFolder.id)
+            }
+
+            // Find or create journal subfolder inside user folder
+            console.log('[Drive] Looking for journal folder in user folder', userFolder.id)
+            let journalFolder = await findFolder(token, JOURNAL_FOLDER, userFolder.id)
             console.log('[Drive] Journal folder result:', journalFolder)
             if (!journalFolder) {
                 console.log('[Drive] Creating journal folder...')
-                journalFolder = await createFolder(token, JOURNAL_FOLDER, rootFolder.id)
+                journalFolder = await createFolder(token, JOURNAL_FOLDER, userFolder.id)
             }
 
             const folderIds = {
                 root: rootFolder.id,
+                user: userFolder.id,
                 journal: journalFolder.id
             }
 
@@ -185,7 +196,8 @@ export function useGoogleDrive() {
         const token = getAccessToken()
         if (!token) throw new Error('Not authenticated')
 
-        const folderId = folders.root || (await initializeFolders()).root
+        // Save tasks in user folder
+        const folderId = folders.user || (await initializeFolders()).user
         const content = JSON.stringify({ tasks, lastModified: new Date().toISOString() }, null, 2)
 
         const existingFile = await findFile(token, TASKS_FILE, folderId)
@@ -195,7 +207,7 @@ export function useGoogleDrive() {
         } else {
             return await createFile(token, TASKS_FILE, content, folderId, 'application/json')
         }
-    }, [getAccessToken, user, folders.root, initializeFolders])
+    }, [getAccessToken, user, folders.user, initializeFolders])
 
     // Load tasks
     const loadTasks = useCallback(async () => {
@@ -206,14 +218,15 @@ export function useGoogleDrive() {
         const token = getAccessToken()
         if (!token) throw new Error('Not authenticated')
 
-        const folderId = folders.root || (await initializeFolders()).root
+        // Load tasks from user folder
+        const folderId = folders.user || (await initializeFolders()).user
         const file = await findFile(token, TASKS_FILE, folderId)
 
         if (!file) return null
 
         const content = await downloadFile(token, file.id)
         return JSON.parse(content)
-    }, [getAccessToken, user, folders.root, initializeFolders])
+    }, [getAccessToken, user, folders.user, initializeFolders])
 
     return {
         isLoading,
