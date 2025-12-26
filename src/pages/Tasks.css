@@ -344,19 +344,13 @@
     opacity: 0.6;
 }
 
-/* Card actions - positioned top-right, visible on hover */
+/* Card actions - inline with meta row, visible on hover */
 .card-actions {
-    position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
     display: flex;
     gap: var(--space-1);
     opacity: 0;
     transition: opacity var(--transition-fast);
-    background: var(--color-bg-elevated);
-    padding: var(--space-1);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-sm);
+    margin-left: auto;
 }
 
 .task-card:hover .card-actions {
@@ -369,6 +363,15 @@
 
 .card-actions .delete-btn:hover {
     color: var(--color-error);
+}
+
+/* Adjust card-meta to be a flex row with actions */
+.card-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
 }
 
 /* Edit description textarea */

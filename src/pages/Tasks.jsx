@@ -525,14 +525,14 @@ function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNe
                     </span>
                 )}
                 {task.calendarEventId && <span className="synced-icon">📅</span>}
-            </div>
-            <div className="card-actions">
-                <button className="btn btn-ghost btn-xs" onClick={onEdit} title="Edit task"><EditIcon /></button>
-                {onMoveToSprint && <button className="btn btn-ghost btn-xs" onClick={onMoveToSprint} title="Move to Sprint"><ArrowRightIcon /></button>}
-                {showMoveButtons && onMoveBack && <button className="btn btn-ghost btn-xs" onClick={onMoveBack} title="Move back"><ArrowLeftIcon /></button>}
-                {showMoveButtons && onMoveNext && <button className="btn btn-ghost btn-xs" onClick={onMoveNext} title="Move forward"><ArrowRightIcon /></button>}
-                {isCompleted && onMoveBack && <button className="btn btn-ghost btn-xs" onClick={onMoveBack} title="Reopen"><UndoIcon /></button>}
-                <button className="btn btn-ghost btn-xs delete-btn" onClick={onDelete} title="Delete"><TrashIcon /></button>
+                <div className="card-actions">
+                    <button className="btn btn-ghost btn-xs" onClick={onEdit} title="Edit task"><EditIcon /></button>
+                    {onMoveToSprint && <button className="btn btn-ghost btn-xs" onClick={onMoveToSprint} title="Move to Sprint"><ArrowRightIcon /></button>}
+                    {showMoveButtons && onMoveBack && <button className="btn btn-ghost btn-xs" onClick={onMoveBack} title="Move back"><ArrowLeftIcon /></button>}
+                    {showMoveButtons && onMoveNext && <button className="btn btn-ghost btn-xs" onClick={onMoveNext} title="Move forward"><ArrowRightIcon /></button>}
+                    {isCompleted && onMoveBack && <button className="btn btn-ghost btn-xs" onClick={onMoveBack} title="Reopen"><UndoIcon /></button>}
+                    <button className="btn btn-ghost btn-xs delete-btn" onClick={onDelete} title="Delete"><TrashIcon /></button>
+                </div>
             </div>
         </div>
     )
