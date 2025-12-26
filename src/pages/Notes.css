@@ -6,6 +6,49 @@
     overflow: hidden;
 }
 
+/* Focus Mode - hides sidebar and centers editor */
+.notes-page.focus-mode .notes-sidebar {
+    display: none;
+}
+
+.notes-page.focus-mode .notes-editor {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-6);
+}
+
+.notes-page.focus-mode .editor-header {
+    position: sticky;
+    top: 0;
+    background: var(--color-bg-primary);
+    z-index: 10;
+    border-bottom: 1px solid var(--color-border-primary);
+    margin: calc(-1 * var(--space-6));
+    margin-bottom: var(--space-4);
+    padding: var(--space-4) var(--space-6);
+}
+
+.notes-page.focus-mode .markdown-editor {
+    min-height: 70vh;
+}
+
+/* Sync Badge */
+.notes-page .sync-badge {
+    font-size: var(--font-size-xs);
+    color: var(--color-success);
+    padding: var(--space-1);
+}
+
+.notes-page .sync-badge.syncing {
+    color: var(--color-warning);
+}
+
+/* Focus button active state */
+.btn.active {
+    background-color: var(--color-accent-tertiary);
+    color: var(--color-accent-primary);
+}
+
 /* Sidebar */
 .notes-sidebar {
     width: 280px;

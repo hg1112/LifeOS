@@ -1,15 +1,27 @@
-import { useState, useContext, useMemo } from 'react'
+import { useState, useContext, useMemo, useEffect } from 'react'
 import { DataContext } from '../App'
 import './Notes.css'
 
 function Notes() {
-    const { notes, addNote, updateNote, deleteNote } = useContext(DataContext)
+    const { notes, addNote, updateNote, deleteNote, syncStatus } = useContext(DataContext)
     const [selectedNoteId, setSelectedNoteId] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
     const [showNewFolder, setShowNewFolder] = useState(false)
     const [newFolderName, setNewFolderName] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
     const [expandedFolders, setExpandedFolders] = useState({ root: true })
+    const [focusMode, setFocusMode] = useState(false)
+
+    // Toggle body class for focus mode (to hide main app sidebar)
+    useEffect(() => {
+        if (focusMode) {
+            document.body.classList.add('focus-mode-active')
+        } else {
+            document.body.classList.remove('focus-mode-active')
+        }
+        // Cleanup on unmount
+        return () => document.body.classList.remove('focus-mode-active')
+    }, [focusMode])
 
     // Get current note
     const selectedNote = notes.find(n => n.id === selectedNoteId)
@@ -97,7 +109,7 @@ function Notes() {
     }
 
     return (
-        <div className="notes-page">
+        <div className={`notes-page ${focusMode ? 'focus-mode' : ''}`}>
             {/* Sidebar */}
             <aside className="notes-sidebar">
                 <div className="sidebar-header">
@@ -199,6 +211,9 @@ function Notes() {
                                 placeholder="Note title..."
                             />
                             <div className="editor-actions">
+                                <span className={`sync-badge ${syncStatus}`}>
+                                    {syncStatus === 'syncing' ? 'Saving...' : '✓'}
+                                </span>
                                 <select
                                     className="folder-select"
                                     value={selectedNote.folder || 'root'}
@@ -209,10 +224,17 @@ function Notes() {
                                     ))}
                                 </select>
                                 <button
+                                    className={`btn btn-ghost btn-sm ${focusMode ? 'active' : ''}`}
+                                    onClick={() => setFocusMode(!focusMode)}
+                                    title="Focus Mode"
+                                >
+                                    <FocusIcon /> Focus
+                                </button>
+                                <button
                                     className={`btn btn-sm ${isEditing ? 'btn-primary' : 'btn-secondary'}`}
                                     onClick={() => setIsEditing(!isEditing)}
                                 >
-                                    {isEditing ? 'Preview' : 'Edit'}
+                                    {isEditing ? '👁️ Preview' : '✏️ Edit'}
                                 </button>
                             </div>
                         </div>
@@ -304,5 +326,6 @@ function DocumentIcon() { return <svg width="14" height="14" viewBox="0 0 24 24"
 function NoteIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" x2="8" y1="13" y2="13" /><line x1="16" x2="8" y1="17" y2="17" /><line x1="10" x2="8" y1="9" y2="9" /></svg> }
 function TrashIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg> }
 function CollapseIcon({ collapsed }) { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><path d="m6 9 6 6 6-6" /></svg> }
+function FocusIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M3 12h4m10 0h4M12 3v4m0 10v4" /></svg> }
 
 export default Notes
