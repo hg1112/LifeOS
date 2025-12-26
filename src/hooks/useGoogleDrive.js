@@ -205,43 +205,71 @@ export function useGoogleDrive() {
     // Save tasks
     const saveTasks = useCallback(async (tasks) => {
         if (user?.isDemo) {
-            console.log('Demo mode - tasks saved locally only')
+            console.log('[Drive] Demo mode - tasks saved locally only')
             return
         }
 
         const token = getAccessToken()
-        if (!token) throw new Error('Not authenticated')
+        if (!token) {
+            console.error('[Drive] saveTasks: Not authenticated')
+            throw new Error('Not authenticated')
+        }
 
         // Save tasks in user folder
+        console.log('[Drive] Saving tasks...')
         const folderId = folders.user || (await initializeFolders()).user
+        console.log('[Drive] Tasks folder ID:', folderId)
+
         const content = JSON.stringify({ tasks, lastModified: new Date().toISOString() }, null, 2)
+        console.log('[Drive] Tasks content length:', content.length, 'tasks count:', tasks.length)
 
         const existingFile = await findFile(token, TASKS_FILE, folderId)
+        console.log('[Drive] Existing tasks file:', existingFile)
 
         if (existingFile) {
-            return await updateFile(token, existingFile.id, content)
+            console.log('[Drive] Updating existing tasks file:', existingFile.id)
+            const result = await updateFile(token, existingFile.id, content)
+            console.log('[Drive] Tasks file updated:', result)
+            return result
         } else {
-            return await createFile(token, TASKS_FILE, content, folderId, 'application/json')
+            console.log('[Drive] Creating new tasks file in folder:', folderId)
+            const result = await createFile(token, TASKS_FILE, content, folderId, 'application/json')
+            console.log('[Drive] Tasks file created:', result)
+            return result
         }
     }, [getAccessToken, user, folders.user, initializeFolders])
 
     // Load tasks
     const loadTasks = useCallback(async () => {
         if (user?.isDemo) {
+            console.log('[Drive] Demo mode - no tasks to load')
             return null
         }
 
         const token = getAccessToken()
-        if (!token) throw new Error('Not authenticated')
+        if (!token) {
+            console.error('[Drive] loadTasks: Not authenticated')
+            throw new Error('Not authenticated')
+        }
 
         // Load tasks from user folder
+        console.log('[Drive] Loading tasks...')
         const folderId = folders.user || (await initializeFolders()).user
-        const file = await findFile(token, TASKS_FILE, folderId)
+        console.log('[Drive] Looking for tasks in folder:', folderId)
 
-        if (!file) return null
+        const file = await findFile(token, TASKS_FILE, folderId)
+        console.log('[Drive] Tasks file found:', file)
+
+        if (!file) {
+            console.log('[Drive] No tasks file found')
+            return null
+        }
 
         const content = await downloadFile(token, file.id)
-        return JSON.parse(content)
+        console.log('[Drive] Tasks content loaded, length:', content.length)
+        const parsed = JSON.parse(content)
+        console.log('[Drive] Tasks loaded:', parsed.tasks?.length || 0, 'tasks')
+        return parsed
     }, [getAccessToken, user, folders.user, initializeFolders])
 
     return {
