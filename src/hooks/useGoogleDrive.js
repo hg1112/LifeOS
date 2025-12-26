@@ -37,14 +37,20 @@ export function useGoogleDrive() {
 
         try {
             // Find or create LifeOS folder
+            console.log('[Drive] Looking for LifeOS folder in root...')
             let rootFolder = await findFolder(token, FOLDER_NAME, 'root')
+            console.log('[Drive] Root folder result:', rootFolder)
             if (!rootFolder) {
+                console.log('[Drive] Creating LifeOS folder...')
                 rootFolder = await createFolder(token, FOLDER_NAME, 'root')
             }
 
             // Find or create journal subfolder
+            console.log('[Drive] Looking for journal folder in', rootFolder.id)
             let journalFolder = await findFolder(token, JOURNAL_FOLDER, rootFolder.id)
+            console.log('[Drive] Journal folder result:', journalFolder)
             if (!journalFolder) {
+                console.log('[Drive] Creating journal folder...')
                 journalFolder = await createFolder(token, JOURNAL_FOLDER, rootFolder.id)
             }
 
@@ -53,10 +59,12 @@ export function useGoogleDrive() {
                 journal: journalFolder.id
             }
 
+            console.log('[Drive] Initialized folders:', folderIds)
             setFolders(folderIds)
             setIsLoading(false)
             return folderIds
         } catch (err) {
+            console.error('[Drive] Folder initialization error:', err)
             setError(err.message)
             setIsLoading(false)
             throw err
@@ -144,14 +152,26 @@ export function useGoogleDrive() {
         if (!token) throw new Error('Not authenticated')
 
         const folderId = folders.journal || (await initializeFolders()).journal
+        console.log('[Drive] Listing journal entries in folder:', folderId)
 
-        const response = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+mimeType='text/markdown'&fields=files(id,name,modifiedTime)`,
-            { headers: { Authorization: `Bearer ${token}` } }
-        )
+        // Query for .md files (don't filter by mimeType as it's unreliable)
+        const query = `'${folderId}' in parents and name contains '.md' and trashed=false`
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime,mimeType)`
 
-        if (!response.ok) throw new Error('Failed to list files')
+        console.log('[Drive] Query:', query)
+
+        const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[Drive] List files failed:', response.status, errorText)
+            throw new Error('Failed to list files')
+        }
+
         const data = await response.json()
+        console.log('[Drive] Found files:', data.files?.length || 0, data.files)
         return data.files || []
     }, [getAccessToken, user, folders.journal, initializeFolders])
 
