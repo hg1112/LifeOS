@@ -51,6 +51,17 @@ function Journal() {
         autoRefresh()
     }, [currentDate, isAuthenticated, refreshSingleEntry])
 
+    // Toggle body class for focus mode (to hide main app sidebar)
+    useEffect(() => {
+        if (focusMode) {
+            document.body.classList.add('focus-mode-active')
+        } else {
+            document.body.classList.remove('focus-mode-active')
+        }
+        // Cleanup on unmount
+        return () => document.body.classList.remove('focus-mode-active')
+    }, [focusMode])
+
     const entry = journalEntries[currentDate] || {
         date: currentDate,
         content: `# ${formatDate(currentDate)}\n\n`,

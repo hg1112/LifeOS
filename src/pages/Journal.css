@@ -6,14 +6,30 @@
     overflow: hidden;
 }
 
-/* Focus Mode */
+/* Focus Mode - hides journal sidebar and centers editor */
 .journal-page.focus-mode .journal-sidebar {
     display: none;
 }
 
 .journal-page.focus-mode .journal-editor {
-    max-width: 900px;
+    max-width: 800px;
     margin: 0 auto;
+    padding: var(--space-6);
+}
+
+.journal-page.focus-mode .journal-header {
+    position: sticky;
+    top: 0;
+    background: var(--color-bg-primary);
+    z-index: 10;
+    border-bottom: 1px solid var(--color-border-primary);
+    margin: calc(-1 * var(--space-6));
+    margin-bottom: var(--space-4);
+    padding: var(--space-4) var(--space-6);
+}
+
+.journal-page.focus-mode .editor-area {
+    min-height: 70vh;
 }
 
 /* Journal Sidebar */

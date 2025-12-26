@@ -5,6 +5,23 @@
   background-color: var(--color-bg-primary);
 }
 
+/* Global Focus Mode - hides main sidebar and expands content */
+body.focus-mode-active .sidebar {
+  display: none !important;
+}
+
+body.focus-mode-active .app-layout {
+  grid-template-columns: 1fr !important;
+}
+
+body.focus-mode-active .main-content {
+  max-width: 100%;
+}
+
+body.focus-mode-active .mobile-header {
+  display: none !important;
+}
+
 /* Sync Status Indicator */
 .sync-status {
   display: flex;
