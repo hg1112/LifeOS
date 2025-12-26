@@ -1,16 +1,39 @@
-import { useState, useContext, useMemo } from 'react'
+import { useState, useContext, useMemo, useEffect, useRef } from 'react'
 import { DataContext, AuthContext } from '../App'
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar'
 import './Tasks.css'
 
 function Tasks() {
-    const { tasks, addTask, updateTask, deleteTask, toggleTask } = useContext(DataContext)
-    const { user } = useContext(AuthContext)
+    const { tasks, addTask, updateTask, deleteTask, toggleTask, refreshTasks, tasksDirty, syncStatus } = useContext(DataContext)
+    const { user, isAuthenticated } = useContext(AuthContext)
     const { calendars, fetchCalendars, createEvent } = useGoogleCalendar()
     const [showForm, setShowForm] = useState(false)
     const [editingId, setEditingId] = useState(null)
     const [isCreating, setIsCreating] = useState(false)
     const [draggedTask, setDraggedTask] = useState(null)
+    const [isRefreshing, setIsRefreshing] = useState(false)
+    const hasAutoRefreshed = useRef(false)
+
+    // Auto-refresh tasks on page load
+    useEffect(() => {
+        if (!isAuthenticated || user?.isDemo || hasAutoRefreshed.current) return
+
+        const autoRefresh = async () => {
+            setIsRefreshing(true)
+            await refreshTasks()
+            hasAutoRefreshed.current = true
+            setIsRefreshing(false)
+        }
+
+        autoRefresh()
+    }, [isAuthenticated, user, refreshTasks])
+
+    // Manual refresh handler
+    const handleRefresh = async () => {
+        setIsRefreshing(true)
+        await refreshTasks()
+        setIsRefreshing(false)
+    }
 
     // Collapsed state for columns
     const [collapsed, setCollapsed] = useState({
@@ -174,6 +197,17 @@ function Tasks() {
                         </div>
                         <span className="progress-text">{sprintStats.done}/{sprintStats.total} done</span>
                     </div>
+                    <button
+                        className={`btn btn-ghost refresh-btn ${isRefreshing ? 'refreshing' : ''}`}
+                        onClick={handleRefresh}
+                        disabled={isRefreshing || tasksDirty}
+                        title={tasksDirty ? 'Save changes first' : 'Refresh from Drive'}
+                    >
+                        🔄 {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                    <span className={`sync-badge ${syncStatus} ${tasksDirty ? 'has-changes' : ''}`}>
+                        {isRefreshing ? '🔄' : syncStatus === 'syncing' ? 'Saving...' : tasksDirty ? '●' : '✓'}
+                    </span>
                     <button className="btn btn-primary" onClick={() => handleOpenForm('backlog')}>
                         <PlusIcon /> Add Task
                     </button>

@@ -334,6 +334,38 @@ function App() {
     return dirtyJournals.has(date)
   }, [dirtyJournals])
 
+  // Refresh tasks from Drive (on-demand)
+  const refreshTasks = useCallback(async () => {
+    if (!isAuthenticated || user?.isDemo) return null
+
+    // Don't refresh if there are unsaved task changes
+    if (tasksDirty) {
+      console.log('[Sync] Tasks have unsaved changes, skipping refresh')
+      return tasks
+    }
+
+    try {
+      console.log('[Sync] Refreshing tasks from Drive...')
+      setSyncStatus('syncing')
+
+      const tasksData = await loadTasks()
+
+      if (tasksData?.tasks) {
+        setTasks(tasksData.tasks)
+        originalTasksRef.current = JSON.stringify(tasksData.tasks)
+        console.log('[Sync] Tasks refreshed:', tasksData.tasks.length, 'tasks')
+      }
+
+      setSyncStatus('synced')
+      return tasksData?.tasks || []
+    } catch (error) {
+      console.error('[Sync] Error refreshing tasks:', error)
+      setSyncError(error.message)
+      setSyncStatus('error')
+      return null
+    }
+  }, [isAuthenticated, user, tasksDirty, tasks, loadTasks])
+
   const addTask = useCallback((task) => {
     const newTask = { id: Date.now().toString(), ...task, completed: false, createdAt: new Date().toISOString() }
     setTasks(prev => {
@@ -427,7 +459,9 @@ function App() {
           forceSync,
           hasUnsavedChanges,
           refreshSingleEntry,
-          entryHasUnsavedChanges
+          entryHasUnsavedChanges,
+          refreshTasks,
+          tasksDirty
         }}>
           {/* Show Setup if no Client ID configured */}
           {!clientIdConfigured ? (

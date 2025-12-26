@@ -43,6 +43,53 @@
     gap: var(--space-4);
 }
 
+.refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.refresh-btn.refreshing {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.sync-badge {
+    font-size: var(--font-size-xs);
+    color: var(--color-success);
+    padding: var(--space-1);
+}
+
+.sync-badge.syncing {
+    color: var(--color-warning);
+}
+
+.sync-badge.has-changes {
+    color: var(--color-warning);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.sync-badge.error {
+    color: var(--color-error);
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
 .sprint-progress {
     display: flex;
     align-items: center;
