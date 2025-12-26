@@ -237,6 +237,36 @@
     color: var(--color-warning);
 }
 
+.sync-badge.has-changes {
+    color: var(--color-warning);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.sync-badge.error {
+    color: var(--color-error);
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.force-save-btn {
+    color: var(--color-warning) !important;
+    font-size: var(--font-size-xs);
+}
+
+.force-save-btn:hover {
+    background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
 /* Rich Toolbar */
 .rich-toolbar {
     display: flex;

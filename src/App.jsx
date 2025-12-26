@@ -41,6 +41,14 @@ function App() {
   const [syncStatus, setSyncStatus] = useState('idle')
   const [dataLoaded, setDataLoaded] = useState(false)
 
+  // Track dirty state for change detection
+  const [dirtyJournals, setDirtyJournals] = useState(new Set())
+  const [tasksDirty, setTasksDirty] = useState(false)
+
+  // Store original content for comparison
+  const originalJournalContentRef = useRef({})
+  const originalTasksRef = useRef(null)
+
   // Refs for debouncing
   const journalSaveTimeoutRef = useRef({})
   const tasksSaveTimeoutRef = useRef(null)
@@ -76,6 +84,8 @@ function App() {
                 content,
                 lastModified: entry.modifiedTime
               }
+              // Store original content for change detection
+              originalJournalContentRef.current[date] = content
             }
           }
           if (Object.keys(journalData).length > 0) {
@@ -87,6 +97,8 @@ function App() {
         const tasksData = await loadTasks()
         if (tasksData?.tasks) {
           setTasks(tasksData.tasks)
+          // Store original tasks for change detection
+          originalTasksRef.current = JSON.stringify(tasksData.tasks)
         }
 
         setDataLoaded(true)
@@ -111,7 +123,7 @@ function App() {
     const today = new Date().toISOString().split('T')[0]
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
 
-    setJournalEntries({
+    const demoJournals = {
       [today]: {
         date: today,
         content: `# ${formatDate(today)}\n\nWelcome to LifeOS Journal! Start writing your thoughts here...\n\n## Today's Focus\n- \n\n## Notes\n`,
@@ -122,13 +134,22 @@ function App() {
         content: `# ${formatDate(yesterday)}\n\nThis is a sample entry from yesterday.\n\n## Accomplishments\n- Set up LifeOS Journal\n- Started my journaling habit\n`,
         lastModified: new Date(Date.now() - 86400000).toISOString()
       }
-    })
+    }
 
-    setTasks([
+    const demoTasks = [
       { id: '1', title: 'Set up Google Cloud Project', completed: false, dueDate: today, priority: 'high', status: 'backlog', createdAt: new Date().toISOString() },
       { id: '2', title: 'Connect Google Drive for backup', completed: false, dueDate: null, priority: 'medium', status: 'backlog', createdAt: new Date().toISOString() },
       { id: '3', title: 'Write in journal daily', completed: false, dueDate: null, priority: 'low', status: 'backlog', createdAt: new Date().toISOString() }
-    ])
+    ]
+
+    setJournalEntries(demoJournals)
+    setTasks(demoTasks)
+
+    // Store originals
+    Object.entries(demoJournals).forEach(([date, entry]) => {
+      originalJournalContentRef.current[date] = entry.content
+    })
+    originalTasksRef.current = JSON.stringify(demoTasks)
 
     setNotes([
       { id: '1', title: 'Welcome to Notes', content: '# Welcome to Notes\n\nThis is your free-form note-taking space!\n\n## Features\n- Create folders to organize notes\n- Write in markdown\n- Search across all notes\n\n## Tips\n- Use **bold** and *italic* for emphasis\n- Create lists with - or 1.\n- Add links with [text](url)', folder: 'root', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
@@ -144,6 +165,13 @@ function App() {
 
     try {
       await saveJournalEntry(date, content)
+      // Update original content after successful save
+      originalJournalContentRef.current[date] = content
+      setDirtyJournals(prev => {
+        const next = new Set(prev)
+        next.delete(date)
+        return next
+      })
       setSyncStatus('synced')
     } catch (error) {
       console.error('Error saving journal to Drive:', error)
@@ -157,6 +185,9 @@ function App() {
 
     try {
       await saveTasks(tasksToSave)
+      // Update original tasks after successful save
+      originalTasksRef.current = JSON.stringify(tasksToSave)
+      setTasksDirty(false)
       setSyncStatus('synced')
     } catch (error) {
       console.error('Error saving tasks to Drive:', error)
@@ -164,12 +195,21 @@ function App() {
     }
   }, [isAuthenticated, user, saveTasks])
 
-  // Journal operations with auto-sync
+  // Journal operations with auto-sync (only if changed)
   const updateJournalEntry = useCallback((date, content) => {
     setJournalEntries(prev => ({
       ...prev,
       [date]: { date, content, lastModified: new Date().toISOString() }
     }))
+
+    // Check if content actually changed
+    const originalContent = originalJournalContentRef.current[date] || ''
+    if (content === originalContent) {
+      return // No change, don't sync
+    }
+
+    // Mark as dirty and sync
+    setDirtyJournals(prev => new Set(prev).add(date))
     setSyncStatus('syncing')
 
     // Debounce save to Drive (1 second delay)
@@ -181,8 +221,15 @@ function App() {
     }, 1000)
   }, [saveJournalToDrive])
 
-  // Task operations with auto-sync
+  // Task operations with auto-sync (only if changed)
   const syncTasksToDriver = useCallback((newTasks) => {
+    // Check if tasks actually changed
+    const newTasksJson = JSON.stringify(newTasks)
+    if (newTasksJson === originalTasksRef.current) {
+      return // No change, don't sync
+    }
+
+    setTasksDirty(true)
     setSyncStatus('syncing')
 
     if (tasksSaveTimeoutRef.current) {
@@ -192,6 +239,51 @@ function App() {
       saveTasksToDrive(newTasks)
     }, 1000)
   }, [saveTasksToDrive])
+
+  // Force sync all dirty data immediately
+  const forceSync = useCallback(async () => {
+    if (!isAuthenticated || user?.isDemo) {
+      setSyncStatus('synced')
+      return
+    }
+
+    setSyncStatus('syncing')
+
+    try {
+      // Cancel any pending debounced saves
+      Object.values(journalSaveTimeoutRef.current).forEach(clearTimeout)
+      journalSaveTimeoutRef.current = {}
+      if (tasksSaveTimeoutRef.current) {
+        clearTimeout(tasksSaveTimeoutRef.current)
+        tasksSaveTimeoutRef.current = null
+      }
+
+      // Save all dirty journals
+      for (const date of dirtyJournals) {
+        const entry = journalEntries[date]
+        if (entry) {
+          await saveJournalEntry(date, entry.content)
+          originalJournalContentRef.current[date] = entry.content
+        }
+      }
+      setDirtyJournals(new Set())
+
+      // Save tasks if dirty
+      if (tasksDirty) {
+        await saveTasks(tasks)
+        originalTasksRef.current = JSON.stringify(tasks)
+        setTasksDirty(false)
+      }
+
+      setSyncStatus('synced')
+    } catch (error) {
+      console.error('Error during force sync:', error)
+      setSyncStatus('error')
+    }
+  }, [isAuthenticated, user, dirtyJournals, journalEntries, tasksDirty, tasks, saveJournalEntry, saveTasks])
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = dirtyJournals.size > 0 || tasksDirty
 
   const addTask = useCallback((task) => {
     const newTask = { id: Date.now().toString(), ...task, completed: false, createdAt: new Date().toISOString() }
@@ -281,7 +373,9 @@ function App() {
           deleteDrawing,
           syncStatus,
           isDriveLoading,
-          driveError
+          driveError,
+          forceSync,
+          hasUnsavedChanges
         }}>
           <Routes>
             <Route path="/login" element={

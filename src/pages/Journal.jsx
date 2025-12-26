@@ -9,7 +9,7 @@ const DrawingModal = lazy(() => import('../components/DrawingModal/DrawingModal'
 function Journal() {
     const { date } = useParams()
     const navigate = useNavigate()
-    const { journalEntries, updateJournalEntry, syncStatus, drawings, saveDrawing } = useContext(DataContext)
+    const { journalEntries, updateJournalEntry, syncStatus, drawings, saveDrawing, forceSync, hasUnsavedChanges } = useContext(DataContext)
     const textareaRef = useRef(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -170,7 +170,18 @@ function Journal() {
                         <button className="btn btn-ghost btn-icon" onClick={() => goToDate(1)} title="Next day"><ChevronRight /></button>
                     </div>
                     <div className="journal-actions">
-                        <span className={`sync-badge ${syncStatus}`}>{syncStatus === 'syncing' ? 'Saving...' : '✓'}</span>
+                        <span className={`sync-badge ${syncStatus} ${hasUnsavedChanges ? 'has-changes' : ''}`}>
+                            {syncStatus === 'syncing' ? 'Saving...' : hasUnsavedChanges ? '●' : '✓'}
+                        </span>
+                        {hasUnsavedChanges && (
+                            <button
+                                className="btn btn-ghost btn-sm force-save-btn"
+                                onClick={forceSync}
+                                title="Force save all changes"
+                            >
+                                💾 Save
+                            </button>
+                        )}
                         <button className={`btn btn-ghost btn-sm ${focusMode ? 'active' : ''}`} onClick={() => setFocusMode(!focusMode)} title="Focus Mode">
                             <FocusIcon /> Focus
                         </button>
