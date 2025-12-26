@@ -40,12 +40,44 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Don't cache API requests in the precache
+        navigateFallbackDenylist: [/^\/api/, /^https:\/\/.*googleapis\.com/],
         runtimeCaching: [
           {
+            // Google Drive and Calendar API - always use network
+            urlPattern: /^https:\/\/.*\.googleapis\.com\/.*/i,
+            handler: 'NetworkOnly',
+            options: {
+              cacheName: 'google-api-cache',
+              networkTimeoutSeconds: 30
+            }
+          },
+          {
+            // Google Identity Services - always use network
+            urlPattern: /^https:\/\/accounts\.google\.com\/.*/i,
+            handler: 'NetworkOnly'
+          },
+          {
+            // Google Fonts - cache first for performance
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Google Fonts static files
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-static',
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365
