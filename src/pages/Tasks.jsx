@@ -428,6 +428,7 @@ function Tasks() {
 function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNext, onMoveBack, onEdit, isEditing, onSave, onCancel, showMoveButtons, isCompleted }) {
     const [editedTask, setEditedTask] = useState({
         title: task.title,
+        description: task.description || '',
         priority: task.priority,
         dueDate: task.dueDate || '',
         startTime: task.startTime || '09:00',
@@ -457,6 +458,14 @@ function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNe
                         autoFocus
                         className="edit-input"
                         placeholder="Task title"
+                    />
+
+                    <textarea
+                        className="edit-description"
+                        value={editedTask.description}
+                        onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
+                        placeholder="Add description..."
+                        rows={3}
                     />
 
                     <div className="edit-row">
@@ -527,7 +536,13 @@ function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNe
         <div className={`task-card ${isCompleted ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}`} draggable onDragStart={onDragStart}>
             <div className="card-content" onClick={onEdit}>
                 <span className={`priority-dot ${task.priority}`} />
-                <span className="card-title">{task.title}</span>
+                <div className="card-text">
+                    <span className="card-title">{task.title}</span>
+                    {task.description && (
+                        <span className="card-description">{task.description.slice(0, 60)}{task.description.length > 60 ? '...' : ''}</span>
+                    )}
+                </div>
+                {task.description && <span className="has-description" title="Has description">📝</span>}
             </div>
             <div className="card-meta">
                 {task.dueDate && (
