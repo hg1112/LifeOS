@@ -51,11 +51,12 @@ function Tasks() {
     const [newTask, setNewTask] = useState({
         title: '',
         dueDate: '',
-        dueTime: '09:00',
+        startTime: '09:00',
+        endTime: '10:00',
+        isAllDay: true,
         priority: 'medium',
         addToCalendar: false,
         calendarId: 'primary',
-        duration: 60,
         status: 'backlog'
     })
 
@@ -151,13 +152,25 @@ function Tasks() {
         try {
             let calendarEventId = null
             if (newTask.addToCalendar && newTask.dueDate) {
-                const startDateTime = new Date(`${newTask.dueDate}T${newTask.dueTime}:00`)
-                const endDateTime = new Date(startDateTime.getTime() + newTask.duration * 60 * 1000)
-                const event = {
-                    summary: `📋 ${newTask.title}`,
-                    description: `Task from LifeOS\nPriority: ${newTask.priority}`,
-                    start: { dateTime: startDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-                    end: { dateTime: endDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+                let event
+                if (newTask.isAllDay) {
+                    // All-day event
+                    event = {
+                        summary: `📋 ${newTask.title}`,
+                        description: `Task from LifeOS\nPriority: ${newTask.priority}`,
+                        start: { date: newTask.dueDate },
+                        end: { date: newTask.dueDate }
+                    }
+                } else {
+                    // Timed event
+                    const startDateTime = new Date(`${newTask.dueDate}T${newTask.startTime}:00`)
+                    const endDateTime = new Date(`${newTask.dueDate}T${newTask.endTime}:00`)
+                    event = {
+                        summary: `📋 ${newTask.title}`,
+                        description: `Task from LifeOS\nPriority: ${newTask.priority}`,
+                        start: { dateTime: startDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+                        end: { dateTime: endDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+                    }
                 }
                 const createdEvent = await createEvent(newTask.calendarId, event)
                 calendarEventId = createdEvent?.id
@@ -166,16 +179,19 @@ function Tasks() {
             addTask({
                 title: newTask.title.trim(),
                 dueDate: newTask.dueDate || null,
+                startTime: newTask.isAllDay ? null : newTask.startTime,
+                endTime: newTask.isAllDay ? null : newTask.endTime,
+                isAllDay: newTask.isAllDay,
                 priority: newTask.priority,
                 status: newTask.status,
                 calendarEventId
             })
 
-            setNewTask({ title: '', dueDate: '', dueTime: '09:00', priority: 'medium', addToCalendar: false, calendarId: 'primary', duration: 60, status: 'backlog' })
+            setNewTask({ title: '', dueDate: '', startTime: '09:00', endTime: '10:00', isAllDay: true, priority: 'medium', addToCalendar: false, calendarId: 'primary', status: 'backlog' })
             setShowForm(false)
         } catch (error) {
             console.error('Error:', error)
-            addTask({ title: newTask.title.trim(), dueDate: newTask.dueDate || null, priority: newTask.priority, status: newTask.status })
+            addTask({ title: newTask.title.trim(), dueDate: newTask.dueDate || null, priority: newTask.priority, status: newTask.status, isAllDay: true })
             setShowForm(false)
         } finally {
             setIsCreating(false)
@@ -359,9 +375,9 @@ function Tasks() {
                                 <div className="form-group">
                                     <label>Priority</label>
                                     <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })} disabled={isCreating}>
-                                        <option value="high">High</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="low">Low</option>
+                                        <option value="high">🔴 High</option>
+                                        <option value="medium">🟡 Medium</option>
+                                        <option value="low">🔵 Low</option>
                                     </select>
                                 </div>
                             </div>
@@ -370,12 +386,32 @@ function Tasks() {
                                 <input type="date" value={newTask.dueDate} onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })} disabled={isCreating} />
                             </div>
                             {newTask.dueDate && (
-                                <div className="form-section">
-                                    <label className="checkbox-label">
-                                        <input type="checkbox" checked={newTask.addToCalendar} onChange={(e) => setNewTask({ ...newTask, addToCalendar: e.target.checked })} disabled={isCreating} />
-                                        <span className="checkbox-text"><CalendarPlusIcon /> Add to Google Calendar</span>
-                                    </label>
-                                </div>
+                                <>
+                                    <div className="form-group">
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={newTask.isAllDay} onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })} disabled={isCreating} />
+                                            <span className="checkbox-text">All Day</span>
+                                        </label>
+                                    </div>
+                                    {!newTask.isAllDay && (
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label>Start Time</label>
+                                                <input type="time" value={newTask.startTime} onChange={(e) => setNewTask({ ...newTask, startTime: e.target.value })} disabled={isCreating} />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>End Time</label>
+                                                <input type="time" value={newTask.endTime} onChange={(e) => setNewTask({ ...newTask, endTime: e.target.value })} disabled={isCreating} />
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="form-section">
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={newTask.addToCalendar} onChange={(e) => setNewTask({ ...newTask, addToCalendar: e.target.checked })} disabled={isCreating} />
+                                            <span className="checkbox-text"><CalendarPlusIcon /> Add to Google Calendar</span>
+                                        </label>
+                                    </div>
+                                </>
                             )}
                             <div className="form-actions">
                                 <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)} disabled={isCreating}>Cancel</button>
@@ -390,21 +426,98 @@ function Tasks() {
 }
 
 function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNext, onMoveBack, onEdit, isEditing, onSave, onCancel, showMoveButtons, isCompleted }) {
-    const [editedTask, setEditedTask] = useState({ title: task.title, priority: task.priority })
+    const [editedTask, setEditedTask] = useState({
+        title: task.title,
+        priority: task.priority,
+        dueDate: task.dueDate || '',
+        startTime: task.startTime || '09:00',
+        endTime: task.endTime || '10:00',
+        isAllDay: task.isAllDay ?? true
+    })
     const isOverdue = !task.completed && task.dueDate && task.dueDate < today
+
+    // Format time for display
+    const formatTime = (time) => {
+        if (!time) return ''
+        const [hours, mins] = time.split(':')
+        const h = parseInt(hours)
+        const ampm = h >= 12 ? 'PM' : 'AM'
+        const h12 = h % 12 || 12
+        return `${h12}:${mins} ${ampm}`
+    }
 
     if (isEditing) {
         return (
             <div className="task-card editing">
-                <input type="text" value={editedTask.title} onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })} autoFocus className="edit-input" />
-                <div className="edit-actions">
-                    <select value={editedTask.priority} onChange={(e) => setEditedTask({ ...editedTask, priority: e.target.value })}>
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                    </select>
-                    <button className="btn btn-primary btn-sm" onClick={() => onSave(editedTask)}>Save</button>
-                    <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+                <div className="edit-form">
+                    <input
+                        type="text"
+                        value={editedTask.title}
+                        onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
+                        autoFocus
+                        className="edit-input"
+                        placeholder="Task title"
+                    />
+
+                    <div className="edit-row">
+                        <label className="edit-label">Priority</label>
+                        <select value={editedTask.priority} onChange={(e) => setEditedTask({ ...editedTask, priority: e.target.value })}>
+                            <option value="high">🔴 High</option>
+                            <option value="medium">🟡 Medium</option>
+                            <option value="low">🔵 Low</option>
+                        </select>
+                    </div>
+
+                    <div className="edit-row">
+                        <label className="edit-label">Due Date</label>
+                        <input
+                            type="date"
+                            value={editedTask.dueDate}
+                            onChange={(e) => setEditedTask({ ...editedTask, dueDate: e.target.value })}
+                        />
+                    </div>
+
+                    {editedTask.dueDate && (
+                        <>
+                            <div className="edit-row">
+                                <label className="checkbox-inline">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedTask.isAllDay}
+                                        onChange={(e) => setEditedTask({ ...editedTask, isAllDay: e.target.checked })}
+                                    />
+                                    <span>All Day</span>
+                                </label>
+                            </div>
+
+                            {!editedTask.isAllDay && (
+                                <div className="edit-row time-row">
+                                    <div className="time-input">
+                                        <label className="edit-label">Start</label>
+                                        <input
+                                            type="time"
+                                            value={editedTask.startTime}
+                                            onChange={(e) => setEditedTask({ ...editedTask, startTime: e.target.value })}
+                                        />
+                                    </div>
+                                    <span className="time-separator">→</span>
+                                    <div className="time-input">
+                                        <label className="edit-label">End</label>
+                                        <input
+                                            type="time"
+                                            value={editedTask.endTime}
+                                            onChange={(e) => setEditedTask({ ...editedTask, endTime: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    <div className="edit-actions">
+                        <button className="btn btn-primary btn-sm" onClick={() => onSave(editedTask)}>Save</button>
+                        <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+                    </div>
                 </div>
             </div>
         )
@@ -417,7 +530,14 @@ function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNe
                 <span className="card-title">{task.title}</span>
             </div>
             <div className="card-meta">
-                {task.dueDate && <span className={`due-date ${isOverdue ? 'overdue' : ''}`}>{task.dueDate === today ? 'Today' : formatShortDate(task.dueDate)}</span>}
+                {task.dueDate && (
+                    <span className={`due-date ${isOverdue ? 'overdue' : ''}`}>
+                        {task.dueDate === today ? 'Today' : formatShortDate(task.dueDate)}
+                        {!task.isAllDay && task.startTime && (
+                            <span className="task-time"> • {formatTime(task.startTime)}</span>
+                        )}
+                    </span>
+                )}
                 {task.calendarEventId && <span className="synced-icon">📅</span>}
             </div>
             <div className="card-actions">

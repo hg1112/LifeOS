@@ -358,23 +358,106 @@
 }
 
 /* Editing State */
+.task-card.editing {
+    cursor: default;
+    padding: var(--space-3);
+}
+
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
 .task-card.editing .edit-input {
     width: 100%;
     padding: var(--space-2);
     font-size: var(--font-size-sm);
-    margin-bottom: var(--space-2);
+}
+
+.edit-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.edit-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    min-width: 60px;
+}
+
+.edit-row select,
+.edit-row input[type="date"],
+.edit-row input[type="time"] {
+    flex: 1;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+}
+
+.checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.checkbox-inline input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--color-accent-primary);
+}
+
+.time-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.time-input {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1;
+}
+
+.time-input input[type="time"] {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+}
+
+.time-separator {
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-sm);
 }
 
 .edit-actions {
     display: flex;
     gap: var(--space-2);
     align-items: center;
+    justify-content: flex-end;
+    margin-top: var(--space-2);
 }
 
 .edit-actions select {
     padding: var(--space-1) var(--space-2);
     font-size: var(--font-size-xs);
-    flex: 1;
+}
+
+/* Task time display in card */
+.task-time {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
 }
 
 /* Modal */
