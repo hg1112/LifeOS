@@ -258,6 +258,36 @@
     }
 }
 
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.sync-badge.refreshing {
+    color: var(--color-accent-primary);
+}
+
+.refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.refresh-btn.refreshing {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .force-save-btn {
     color: var(--color-warning) !important;
     font-size: var(--font-size-xs);

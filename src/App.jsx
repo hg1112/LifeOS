@@ -289,8 +289,50 @@ function App() {
     }
   }, [isAuthenticated, user, dirtyJournals, journalEntries, tasksDirty, tasks, saveJournalEntry, saveTasks])
 
+  // Refresh a single journal entry from Drive (on-demand)
+  const refreshSingleEntry = useCallback(async (date) => {
+    if (!isAuthenticated || user?.isDemo) return null
+
+    // Check if this entry has unsaved changes
+    if (dirtyJournals.has(date)) {
+      console.log('[Sync] Entry has unsaved changes, skipping refresh:', date)
+      return journalEntries[date]?.content || null
+    }
+
+    try {
+      console.log('[Sync] Refreshing entry from Drive:', date)
+      setSyncStatus('syncing')
+
+      const content = await loadJournalEntry(date)
+
+      if (content !== null) {
+        // Update state with fresh content
+        setJournalEntries(prev => ({
+          ...prev,
+          [date]: { date, content, lastModified: new Date().toISOString() }
+        }))
+        // Update original reference
+        originalJournalContentRef.current[date] = content
+        console.log('[Sync] Entry refreshed:', date)
+      }
+
+      setSyncStatus('synced')
+      return content
+    } catch (error) {
+      console.error('[Sync] Error refreshing entry:', error)
+      setSyncError(error.message)
+      setSyncStatus('error')
+      return null
+    }
+  }, [isAuthenticated, user, dirtyJournals, journalEntries, loadJournalEntry])
+
   // Check if there are unsaved changes
   const hasUnsavedChanges = dirtyJournals.size > 0 || tasksDirty
+
+  // Check if a specific entry has unsaved changes
+  const entryHasUnsavedChanges = useCallback((date) => {
+    return dirtyJournals.has(date)
+  }, [dirtyJournals])
 
   const addTask = useCallback((task) => {
     const newTask = { id: Date.now().toString(), ...task, completed: false, createdAt: new Date().toISOString() }
@@ -383,7 +425,9 @@ function App() {
           isDriveLoading,
           driveError,
           forceSync,
-          hasUnsavedChanges
+          hasUnsavedChanges,
+          refreshSingleEntry,
+          entryHasUnsavedChanges
         }}>
           {/* Show Setup if no Client ID configured */}
           {!clientIdConfigured ? (

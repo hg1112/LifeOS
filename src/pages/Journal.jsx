@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect, useRef, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { DataContext } from '../App'
+import { DataContext, AuthContext } from '../App'
 import { getCurrentDate, formatDateShort } from '../utils/timezone'
 import './Journal.css'
 
@@ -10,7 +10,19 @@ const DrawingModal = lazy(() => import('../components/DrawingModal/DrawingModal'
 function Journal() {
     const { date } = useParams()
     const navigate = useNavigate()
-    const { journalEntries, updateJournalEntry, syncStatus, syncError, drawings, saveDrawing, forceSync, hasUnsavedChanges } = useContext(DataContext)
+    const { isAuthenticated } = useContext(AuthContext)
+    const {
+        journalEntries,
+        updateJournalEntry,
+        syncStatus,
+        syncError,
+        drawings,
+        saveDrawing,
+        forceSync,
+        hasUnsavedChanges,
+        refreshSingleEntry,
+        entryHasUnsavedChanges
+    } = useContext(DataContext)
     const textareaRef = useRef(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -18,15 +30,33 @@ function Journal() {
     const [fontSize, setFontSize] = useState('base')
     const [showDrawingModal, setShowDrawingModal] = useState(false)
     const [editingDrawing, setEditingDrawing] = useState(null)
+    const [isRefreshing, setIsRefreshing] = useState(false)
+    const lastRefreshedDate = useRef(null)
 
     const today = getCurrentDate() // Uses configured timezone
     const currentDate = date || today
+
+    // Auto-refresh entry from Drive when navigating to a new date
+    useEffect(() => {
+        if (!isAuthenticated) return
+        if (lastRefreshedDate.current === currentDate) return // Already refreshed this entry
+
+        const autoRefresh = async () => {
+            setIsRefreshing(true)
+            await refreshSingleEntry(currentDate)
+            lastRefreshedDate.current = currentDate
+            setIsRefreshing(false)
+        }
+
+        autoRefresh()
+    }, [currentDate, isAuthenticated, refreshSingleEntry])
 
     const entry = journalEntries[currentDate] || {
         date: currentDate,
         content: `# ${formatDate(currentDate)}\n\n`,
         lastModified: null
     }
+
 
     const [content, setContent] = useState(entry.content)
     const [showPreview, setShowPreview] = useState(false)
@@ -172,18 +202,31 @@ function Journal() {
                     </div>
                     <div className="journal-actions">
                         <span
-                            className={`sync-badge ${syncStatus} ${hasUnsavedChanges ? 'has-changes' : ''}`}
-                            title={syncError || (syncStatus === 'error' ? 'Sync error' : '')}
+                            className={`sync-badge ${syncStatus} ${hasUnsavedChanges ? 'has-changes' : ''} ${isRefreshing ? 'refreshing' : ''}`}
+                            title={syncError || (syncStatus === 'error' ? 'Sync error' : isRefreshing ? 'Refreshing...' : '')}
                         >
-                            {syncStatus === 'syncing' ? 'Saving...' :
-                                syncStatus === 'error' ? '⚠️' :
-                                    hasUnsavedChanges ? '●' : '✓'}
+                            {isRefreshing ? '🔄' :
+                                syncStatus === 'syncing' ? 'Saving...' :
+                                    syncStatus === 'error' ? '⚠️' :
+                                        hasUnsavedChanges ? '●' : '✓'}
                         </span>
                         {syncStatus === 'error' && syncError && (
                             <span className="sync-error-msg" title={syncError}>
                                 {syncError.length > 20 ? syncError.substring(0, 20) + '...' : syncError}
                             </span>
                         )}
+                        <button
+                            className={`btn btn-ghost btn-sm refresh-btn ${isRefreshing ? 'refreshing' : ''}`}
+                            onClick={async () => {
+                                setIsRefreshing(true)
+                                await refreshSingleEntry(currentDate)
+                                setIsRefreshing(false)
+                            }}
+                            disabled={isRefreshing || entryHasUnsavedChanges(currentDate)}
+                            title={entryHasUnsavedChanges(currentDate) ? 'Save changes first' : 'Refresh from Drive'}
+                        >
+                            🔄 {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                        </button>
                         {hasUnsavedChanges && (
                             <button
                                 className="btn btn-ghost btn-sm force-save-btn"
