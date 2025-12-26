@@ -243,6 +243,8 @@
 
 /* Task Card */
 .task-card {
+    display: flex;
+    flex-direction: column;
     background-color: var(--color-bg-elevated);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--radius-md);
@@ -283,6 +285,7 @@
     align-items: flex-start;
     gap: var(--space-2);
     margin-bottom: var(--space-2);
+    flex: 1;
 }
 
 .priority-dot {
@@ -313,12 +316,14 @@
     cursor: pointer;
 }
 
+/* Card meta row - separate row at bottom with time and actions */
 .card-meta {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     font-size: var(--font-size-xs);
     color: var(--color-text-tertiary);
+    min-height: 24px;
 }
 
 /* Card text wrapper for title and description */
