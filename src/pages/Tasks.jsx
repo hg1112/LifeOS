@@ -8,7 +8,7 @@ function Tasks() {
     const { user, isAuthenticated } = useContext(AuthContext)
     const { calendars, fetchCalendars, createEvent } = useGoogleCalendar()
     const [showForm, setShowForm] = useState(false)
-    const [editingId, setEditingId] = useState(null)
+    const [editingTask, setEditingTask] = useState(null) // Task being edited, or null for new
     const [isCreating, setIsCreating] = useState(false)
     const [draggedTask, setDraggedTask] = useState(null)
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -47,9 +47,10 @@ function Tasks() {
         setCollapsed(prev => ({ ...prev, [column]: !prev[column] }))
     }
 
-    // Form state
-    const [newTask, setNewTask] = useState({
+    // Form state for both add and edit
+    const [formData, setFormData] = useState({
         title: '',
+        description: '',
         dueDate: '',
         startTime: '09:00',
         endTime: '10:00',
@@ -138,64 +139,127 @@ function Tasks() {
         }
     }
 
-    const handleOpenForm = async (initialStatus = 'backlog') => {
-        setNewTask(prev => ({ ...prev, status: initialStatus }))
+    // Open form for new task or editing
+    const handleOpenForm = async (initialStatus = 'backlog', taskToEdit = null) => {
+        if (taskToEdit) {
+            // Edit mode
+            setEditingTask(taskToEdit)
+            setFormData({
+                title: taskToEdit.title,
+                description: taskToEdit.description || '',
+                dueDate: taskToEdit.dueDate || '',
+                startTime: taskToEdit.startTime || '09:00',
+                endTime: taskToEdit.endTime || '10:00',
+                isAllDay: taskToEdit.isAllDay ?? true,
+                priority: taskToEdit.priority || 'medium',
+                status: taskToEdit.status || 'backlog',
+                addToCalendar: false,
+                calendarId: 'primary'
+            })
+        } else {
+            // New task mode
+            setEditingTask(null)
+            setFormData({
+                title: '',
+                description: '',
+                dueDate: '',
+                startTime: '09:00',
+                endTime: '10:00',
+                isAllDay: true,
+                priority: 'medium',
+                status: initialStatus,
+                addToCalendar: false,
+                calendarId: 'primary'
+            })
+        }
         setShowForm(true)
         if (calendars.length === 0) await fetchCalendars()
     }
 
+    // Handle clicking on a task card to edit
+    const handleEditTask = (task) => {
+        handleOpenForm('backlog', task)
+    }
+
     const handleSubmit = async (e) => {
         e.preventDefault()
-        if (!newTask.title.trim()) return
+        if (!formData.title.trim()) return
         setIsCreating(true)
 
         try {
-            let calendarEventId = null
-            if (newTask.addToCalendar && newTask.dueDate) {
+            let calendarEventId = editingTask?.calendarEventId || null
+
+            // Create calendar event for new tasks if requested
+            if (!editingTask && formData.addToCalendar && formData.dueDate) {
                 let event
-                if (newTask.isAllDay) {
-                    // All-day event
+                if (formData.isAllDay) {
                     event = {
-                        summary: `📋 ${newTask.title}`,
-                        description: `Task from LifeOS\nPriority: ${newTask.priority}`,
-                        start: { date: newTask.dueDate },
-                        end: { date: newTask.dueDate }
+                        summary: `📋 ${formData.title}`,
+                        description: `Task from LifeOS\nPriority: ${formData.priority}`,
+                        start: { date: formData.dueDate },
+                        end: { date: formData.dueDate }
                     }
                 } else {
-                    // Timed event
-                    const startDateTime = new Date(`${newTask.dueDate}T${newTask.startTime}:00`)
-                    const endDateTime = new Date(`${newTask.dueDate}T${newTask.endTime}:00`)
+                    const startDateTime = new Date(`${formData.dueDate}T${formData.startTime}:00`)
+                    const endDateTime = new Date(`${formData.dueDate}T${formData.endTime}:00`)
                     event = {
-                        summary: `📋 ${newTask.title}`,
-                        description: `Task from LifeOS\nPriority: ${newTask.priority}`,
+                        summary: `📋 ${formData.title}`,
+                        description: `Task from LifeOS\nPriority: ${formData.priority}`,
                         start: { dateTime: startDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
                         end: { dateTime: endDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
                     }
                 }
-                const createdEvent = await createEvent(newTask.calendarId, event)
+                const createdEvent = await createEvent(formData.calendarId, event)
                 calendarEventId = createdEvent?.id
             }
 
-            addTask({
-                title: newTask.title.trim(),
-                dueDate: newTask.dueDate || null,
-                startTime: newTask.isAllDay ? null : newTask.startTime,
-                endTime: newTask.isAllDay ? null : newTask.endTime,
-                isAllDay: newTask.isAllDay,
-                priority: newTask.priority,
-                status: newTask.status,
-                calendarEventId
-            })
+            if (editingTask) {
+                // Update existing task
+                updateTask(editingTask.id, {
+                    title: formData.title.trim(),
+                    description: formData.description.trim(),
+                    dueDate: formData.dueDate || null,
+                    startTime: formData.isAllDay ? null : formData.startTime,
+                    endTime: formData.isAllDay ? null : formData.endTime,
+                    isAllDay: formData.isAllDay,
+                    priority: formData.priority,
+                    status: formData.status
+                })
+            } else {
+                // Create new task
+                addTask({
+                    title: formData.title.trim(),
+                    description: formData.description.trim(),
+                    dueDate: formData.dueDate || null,
+                    startTime: formData.isAllDay ? null : formData.startTime,
+                    endTime: formData.isAllDay ? null : formData.endTime,
+                    isAllDay: formData.isAllDay,
+                    priority: formData.priority,
+                    status: formData.status,
+                    calendarEventId
+                })
+            }
 
-            setNewTask({ title: '', dueDate: '', startTime: '09:00', endTime: '10:00', isAllDay: true, priority: 'medium', addToCalendar: false, calendarId: 'primary', status: 'backlog' })
             setShowForm(false)
+            setEditingTask(null)
         } catch (error) {
             console.error('Error:', error)
-            addTask({ title: newTask.title.trim(), dueDate: newTask.dueDate || null, priority: newTask.priority, status: newTask.status, isAllDay: true })
+            // Fallback: still create/update without calendar
+            if (editingTask) {
+                updateTask(editingTask.id, { title: formData.title.trim(), description: formData.description.trim(), priority: formData.priority, status: formData.status })
+            } else {
+                addTask({ title: formData.title.trim(), description: formData.description.trim(), dueDate: formData.dueDate || null, priority: formData.priority, status: formData.status, isAllDay: true })
+            }
             setShowForm(false)
+            setEditingTask(null)
         } finally {
             setIsCreating(false)
         }
+    }
+
+    const handleCloseForm = () => {
+        setShowForm(false)
+        setEditingTask(null)
     }
 
     return (
@@ -248,10 +312,7 @@ function Tasks() {
                                     onDragStart={(e) => handleDragStart(e, task)}
                                     onDelete={() => deleteTask(task.id)}
                                     onMoveToSprint={() => moveTask(task.id, 'todo')}
-                                    onEdit={() => setEditingId(task.id)}
-                                    isEditing={editingId === task.id}
-                                    onSave={(updates) => { updateTask(task.id, updates); setEditingId(null) }}
-                                    onCancel={() => setEditingId(null)}
+                                    onEdit={() => handleEditTask(task)}
                                 />
                             ))}
                             {categorizedTasks.backlog.length === 0 && (
@@ -283,10 +344,7 @@ function Tasks() {
                                         onDelete={() => deleteTask(task.id)}
                                         onMoveNext={() => moveTask(task.id, 'in-progress')}
                                         onMoveBack={() => moveTask(task.id, 'backlog')}
-                                        onEdit={() => setEditingId(task.id)}
-                                        isEditing={editingId === task.id}
-                                        onSave={(updates) => { updateTask(task.id, updates); setEditingId(null) }}
-                                        onCancel={() => setEditingId(null)}
+                                        onEdit={() => handleEditTask(task)}
                                         showMoveButtons
                                     />
                                 ))}
@@ -312,10 +370,7 @@ function Tasks() {
                                         onDelete={() => deleteTask(task.id)}
                                         onMoveNext={() => moveTask(task.id, 'done')}
                                         onMoveBack={() => moveTask(task.id, 'todo')}
-                                        onEdit={() => setEditingId(task.id)}
-                                        isEditing={editingId === task.id}
-                                        onSave={(updates) => { updateTask(task.id, updates); setEditingId(null) }}
-                                        onCancel={() => setEditingId(null)}
+                                        onEdit={() => handleEditTask(task)}
                                         showMoveButtons
                                     />
                                 ))}
@@ -340,6 +395,7 @@ function Tasks() {
                                         onDragStart={(e) => handleDragStart(e, task)}
                                         onDelete={() => deleteTask(task.id)}
                                         onMoveBack={() => moveTask(task.id, 'in-progress')}
+                                        onEdit={() => handleEditTask(task)}
                                         isCompleted
                                     />
                                 ))}
@@ -350,31 +406,36 @@ function Tasks() {
                 </div>
             </div>
 
-            {/* Add Task Modal */}
+            {/* Task Form Modal (Add/Edit) */}
             {showForm && (
-                <div className="modal-overlay" onClick={() => setShowForm(false)}>
+                <div className="modal-overlay" onClick={handleCloseForm}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>Add New Task</h2>
-                            <button className="btn btn-ghost btn-icon" onClick={() => setShowForm(false)}><CloseIcon /></button>
+                            <h2>{editingTask ? 'Edit Task' : 'Add New Task'}</h2>
+                            <button className="btn btn-ghost btn-icon" onClick={handleCloseForm}><CloseIcon /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="task-form">
                             <div className="form-group">
                                 <label>Task Title</label>
-                                <input type="text" value={newTask.title} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} placeholder="What needs to be done?" autoFocus disabled={isCreating} />
+                                <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="What needs to be done?" autoFocus disabled={isCreating} />
+                            </div>
+                            <div className="form-group">
+                                <label>Description (optional)</label>
+                                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Add more details..." rows={3} disabled={isCreating} />
                             </div>
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label>Add to</label>
-                                    <select value={newTask.status} onChange={(e) => setNewTask({ ...newTask, status: e.target.value })} disabled={isCreating}>
+                                    <label>Status</label>
+                                    <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} disabled={isCreating}>
                                         <option value="backlog">Backlog</option>
                                         <option value="todo">Sprint - To Do</option>
                                         <option value="in-progress">Sprint - In Progress</option>
+                                        <option value="done">Done</option>
                                     </select>
                                 </div>
                                 <div className="form-group">
                                     <label>Priority</label>
-                                    <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })} disabled={isCreating}>
+                                    <select value={formData.priority} onChange={(e) => setFormData({ ...formData, priority: e.target.value })} disabled={isCreating}>
                                         <option value="high">🔴 High</option>
                                         <option value="medium">🟡 Medium</option>
                                         <option value="low">🔵 Low</option>
@@ -383,39 +444,43 @@ function Tasks() {
                             </div>
                             <div className="form-group">
                                 <label>Due Date (optional)</label>
-                                <input type="date" value={newTask.dueDate} onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })} disabled={isCreating} />
+                                <input type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} disabled={isCreating} />
                             </div>
-                            {newTask.dueDate && (
+                            {formData.dueDate && (
                                 <>
                                     <div className="form-group">
                                         <label className="checkbox-label">
-                                            <input type="checkbox" checked={newTask.isAllDay} onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })} disabled={isCreating} />
+                                            <input type="checkbox" checked={formData.isAllDay} onChange={(e) => setFormData({ ...formData, isAllDay: e.target.checked })} disabled={isCreating} />
                                             <span className="checkbox-text">All Day</span>
                                         </label>
                                     </div>
-                                    {!newTask.isAllDay && (
+                                    {!formData.isAllDay && (
                                         <div className="form-row">
                                             <div className="form-group">
                                                 <label>Start Time</label>
-                                                <input type="time" value={newTask.startTime} onChange={(e) => setNewTask({ ...newTask, startTime: e.target.value })} disabled={isCreating} />
+                                                <input type="time" value={formData.startTime} onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} disabled={isCreating} />
                                             </div>
                                             <div className="form-group">
                                                 <label>End Time</label>
-                                                <input type="time" value={newTask.endTime} onChange={(e) => setNewTask({ ...newTask, endTime: e.target.value })} disabled={isCreating} />
+                                                <input type="time" value={formData.endTime} onChange={(e) => setFormData({ ...formData, endTime: e.target.value })} disabled={isCreating} />
                                             </div>
                                         </div>
                                     )}
-                                    <div className="form-section">
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={newTask.addToCalendar} onChange={(e) => setNewTask({ ...newTask, addToCalendar: e.target.checked })} disabled={isCreating} />
-                                            <span className="checkbox-text"><CalendarPlusIcon /> Add to Google Calendar</span>
-                                        </label>
-                                    </div>
+                                    {!editingTask && (
+                                        <div className="form-section">
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={formData.addToCalendar} onChange={(e) => setFormData({ ...formData, addToCalendar: e.target.checked })} disabled={isCreating} />
+                                                <span className="checkbox-text"><CalendarPlusIcon /> Add to Google Calendar</span>
+                                            </label>
+                                        </div>
+                                    )}
                                 </>
                             )}
                             <div className="form-actions">
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)} disabled={isCreating}>Cancel</button>
-                                <button type="submit" className="btn btn-primary" disabled={isCreating}>{isCreating ? 'Creating...' : 'Add Task'}</button>
+                                <button type="button" className="btn btn-secondary" onClick={handleCloseForm} disabled={isCreating}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={isCreating}>
+                                    {isCreating ? (editingTask ? 'Saving...' : 'Creating...') : (editingTask ? 'Save Changes' : 'Add Task')}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -425,16 +490,7 @@ function Tasks() {
     )
 }
 
-function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNext, onMoveBack, onEdit, isEditing, onSave, onCancel, showMoveButtons, isCompleted }) {
-    const [editedTask, setEditedTask] = useState({
-        title: task.title,
-        description: task.description || '',
-        priority: task.priority,
-        dueDate: task.dueDate || '',
-        startTime: task.startTime || '09:00',
-        endTime: task.endTime || '10:00',
-        isAllDay: task.isAllDay ?? true
-    })
+function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNext, onMoveBack, onEdit, showMoveButtons, isCompleted }) {
     const isOverdue = !task.completed && task.dueDate && task.dueDate < today
 
     // Format time for display
@@ -447,94 +503,9 @@ function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNe
         return `${h12}:${mins} ${ampm}`
     }
 
-    if (isEditing) {
-        return (
-            <div className="task-card editing">
-                <div className="edit-form">
-                    <input
-                        type="text"
-                        value={editedTask.title}
-                        onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
-                        autoFocus
-                        className="edit-input"
-                        placeholder="Task title"
-                    />
-
-                    <textarea
-                        className="edit-description"
-                        value={editedTask.description}
-                        onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
-                        placeholder="Add description..."
-                        rows={3}
-                    />
-
-                    <div className="edit-row">
-                        <label className="edit-label">Priority</label>
-                        <select value={editedTask.priority} onChange={(e) => setEditedTask({ ...editedTask, priority: e.target.value })}>
-                            <option value="high">🔴 High</option>
-                            <option value="medium">🟡 Medium</option>
-                            <option value="low">🔵 Low</option>
-                        </select>
-                    </div>
-
-                    <div className="edit-row">
-                        <label className="edit-label">Due Date</label>
-                        <input
-                            type="date"
-                            value={editedTask.dueDate}
-                            onChange={(e) => setEditedTask({ ...editedTask, dueDate: e.target.value })}
-                        />
-                    </div>
-
-                    {editedTask.dueDate && (
-                        <>
-                            <div className="edit-row">
-                                <label className="checkbox-inline">
-                                    <input
-                                        type="checkbox"
-                                        checked={editedTask.isAllDay}
-                                        onChange={(e) => setEditedTask({ ...editedTask, isAllDay: e.target.checked })}
-                                    />
-                                    <span>All Day</span>
-                                </label>
-                            </div>
-
-                            {!editedTask.isAllDay && (
-                                <div className="edit-row time-row">
-                                    <div className="time-input">
-                                        <label className="edit-label">Start</label>
-                                        <input
-                                            type="time"
-                                            value={editedTask.startTime}
-                                            onChange={(e) => setEditedTask({ ...editedTask, startTime: e.target.value })}
-                                        />
-                                    </div>
-                                    <span className="time-separator">→</span>
-                                    <div className="time-input">
-                                        <label className="edit-label">End</label>
-                                        <input
-                                            type="time"
-                                            value={editedTask.endTime}
-                                            onChange={(e) => setEditedTask({ ...editedTask, endTime: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    <div className="edit-actions">
-                        <button className="btn btn-primary btn-sm" onClick={() => onSave(editedTask)}>Save</button>
-                        <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
     return (
         <div className={`task-card ${isCompleted ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}`} draggable onDragStart={onDragStart}>
-            <div className="card-content" onClick={onEdit}>
+            <div className="card-content" onClick={onEdit} title="Click to edit">
                 <span className={`priority-dot ${task.priority}`} />
                 <div className="card-text">
                     <span className="card-title">{task.title}</span>
@@ -556,6 +527,7 @@ function TaskCard({ task, today, onDragStart, onDelete, onMoveToSprint, onMoveNe
                 {task.calendarEventId && <span className="synced-icon">📅</span>}
             </div>
             <div className="card-actions">
+                <button className="btn btn-ghost btn-xs" onClick={onEdit} title="Edit task"><EditIcon /></button>
                 {onMoveToSprint && <button className="btn btn-ghost btn-xs" onClick={onMoveToSprint} title="Move to Sprint"><ArrowRightIcon /></button>}
                 {showMoveButtons && onMoveBack && <button className="btn btn-ghost btn-xs" onClick={onMoveBack} title="Move back"><ArrowLeftIcon /></button>}
                 {showMoveButtons && onMoveNext && <button className="btn btn-ghost btn-xs" onClick={onMoveNext} title="Move forward"><ArrowRightIcon /></button>}
@@ -573,6 +545,7 @@ function TrashIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fi
 function ArrowRightIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg> }
 function ArrowLeftIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg> }
 function UndoIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" /></svg> }
+function EditIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg> }
 function BacklogIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg> }
 function TodoIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /></svg> }
 function InProgressIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg> }
