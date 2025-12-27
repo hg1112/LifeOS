@@ -100,6 +100,18 @@ export function useGoogleAuth() {
             return
         }
 
+        // Get saved user email for login hint
+        let savedEmail = null
+        try {
+            const savedAuth = localStorage.getItem(TOKEN_STORAGE_KEY)
+            if (savedAuth) {
+                const authData = JSON.parse(savedAuth)
+                savedEmail = authData.user?.email
+            }
+        } catch (e) {
+            console.log('No saved email for login hint')
+        }
+
         try {
             await loadGoogleScript()
 
@@ -116,6 +128,7 @@ export function useGoogleAuth() {
                         'profile'
                     ].join(' '),
                     prompt: '', // Empty string for silent refresh
+                    hint: savedEmail || undefined, // Use saved email as login hint
                     callback: async (tokenResponse) => {
                         if (tokenResponse.error) {
                             console.error('Token refresh failed:', tokenResponse.error)
@@ -129,7 +142,12 @@ export function useGoogleAuth() {
                 })
             }
 
-            tokenClientRef.current.requestAccessToken({ prompt: '' })
+            // Request with login hint if available
+            const requestOptions = { prompt: '' }
+            if (savedEmail) {
+                requestOptions.hint = savedEmail
+            }
+            tokenClientRef.current.requestAccessToken(requestOptions)
         } catch (error) {
             console.error('Silent refresh error:', error)
             setAuthError('Failed to refresh session. Please sign in again.')
