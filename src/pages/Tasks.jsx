@@ -63,8 +63,11 @@ function Tasks() {
 
     const today = new Date().toISOString().split('T')[0]
 
-    // Calculate sprint dates (current week)
-    const getSprintDates = () => {
+    // View mode: 'sprint' or 'all'
+    const [viewMode, setViewMode] = useState('sprint')
+
+    // Custom sprint date range (default: current week)
+    const getDefaultSprintDates = () => {
         const now = new Date()
         const dayOfWeek = now.getDay()
         const monday = new Date(now)
@@ -72,11 +75,22 @@ function Tasks() {
         monday.setHours(0, 0, 0, 0)
         const sunday = new Date(monday)
         sunday.setDate(monday.getDate() + 6)
-        return { start: monday, end: sunday }
+        return {
+            start: monday.toISOString().split('T')[0],
+            end: sunday.toISOString().split('T')[0]
+        }
     }
 
-    const sprintDates = getSprintDates()
-    const sprintLabel = `${sprintDates.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${sprintDates.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    const [sprintDates, setSprintDates] = useState(getDefaultSprintDates)
+    const sprintLabel = (() => {
+        const start = new Date(sprintDates.start + 'T12:00:00')
+        const end = new Date(sprintDates.end + 'T12:00:00')
+        return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    })()
+
+    // Search and filters for All Tasks view
+    const [searchQuery, setSearchQuery] = useState('')
+    const [filters, setFilters] = useState({ priority: 'all', status: 'all' })
 
     // Categorize tasks
     const categorizedTasks = useMemo(() => {
@@ -111,6 +125,32 @@ function Tasks() {
             ? Math.round((categorizedTasks.done.length / (categorizedTasks.todo.length + categorizedTasks.inProgress.length + categorizedTasks.done.length)) * 100)
             : 0
     }
+
+    // Filtered tasks for All Tasks view
+    const filteredTasks = useMemo(() => {
+        return tasks.filter(task => {
+            // Search filter
+            const query = searchQuery.toLowerCase()
+            const matchesSearch = !query ||
+                task.title.toLowerCase().includes(query) ||
+                (task.description && task.description.toLowerCase().includes(query))
+
+            // Priority filter
+            const matchesPriority = filters.priority === 'all' || task.priority === filters.priority
+
+            // Status filter
+            const taskStatus = task.completed ? 'done' : (task.status || 'backlog')
+            const matchesStatus = filters.status === 'all' || taskStatus === filters.status
+
+            return matchesSearch && matchesPriority && matchesStatus
+        }).sort((a, b) => {
+            // Sort by priority, then by date
+            const order = { high: 0, medium: 1, low: 2 }
+            const priorityDiff = order[a.priority] - order[b.priority]
+            if (priorityDiff !== 0) return priorityDiff
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        })
+    }, [tasks, searchQuery, filters])
 
     // Drag and drop
     const handleDragStart = (e, task) => {
@@ -267,16 +307,72 @@ function Tasks() {
             {/* Header */}
             <header className="sprint-header">
                 <div className="sprint-header-left">
-                    <h1>Sprint Board</h1>
-                    <span className="sprint-dates">{sprintLabel}</span>
+                    <select className="view-selector" value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+                        <option value="sprint">Sprint Board</option>
+                        <option value="all">All Tasks</option>
+                    </select>
+                    {viewMode === 'sprint' && (
+                        <div className="sprint-date-range">
+                            <input
+                                type="date"
+                                value={sprintDates.start}
+                                onChange={(e) => setSprintDates(prev => ({ ...prev, start: e.target.value }))}
+                                className="date-input"
+                            />
+                            <span className="date-separator">→</span>
+                            <input
+                                type="date"
+                                value={sprintDates.end}
+                                onChange={(e) => setSprintDates(prev => ({ ...prev, end: e.target.value }))}
+                                className="date-input"
+                            />
+                        </div>
+                    )}
+                    {viewMode === 'all' && (
+                        <div className="all-tasks-filters">
+                            <input
+                                type="text"
+                                placeholder="Search tasks..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="search-input"
+                            />
+                            <select
+                                value={filters.priority}
+                                onChange={(e) => setFilters(prev => ({ ...prev, priority: e.target.value }))}
+                                className="filter-select"
+                            >
+                                <option value="all">All Priorities</option>
+                                <option value="high">🔴 High</option>
+                                <option value="medium">🟡 Medium</option>
+                                <option value="low">🔵 Low</option>
+                            </select>
+                            <select
+                                value={filters.status}
+                                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                                className="filter-select"
+                            >
+                                <option value="all">All Statuses</option>
+                                <option value="backlog">Backlog</option>
+                                <option value="todo">To Do</option>
+                                <option value="in-progress">In Progress</option>
+                                <option value="done">Done</option>
+                            </select>
+                        </div>
+                    )}
                 </div>
                 <div className="sprint-header-right">
-                    <div className="sprint-progress">
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{ width: `${sprintStats.progress}%` }} />
+                    {viewMode === 'sprint' && (
+                        <div className="sprint-progress">
+                            <div className="progress-bar">
+                                <div className="progress-fill" style={{ width: `${sprintStats.progress}%` }} />
+                            </div>
+                            <span className="progress-text">{sprintStats.done}/{sprintStats.total} done</span>
                         </div>
-                        <span className="progress-text">{sprintStats.done}/{sprintStats.total} done</span>
-                    </div>
+                    )}
+                    {viewMode === 'all' && (
+                        <span className="task-count">{filteredTasks.length} tasks</span>
+                    )}
                     <button
                         className={`btn btn-ghost refresh-btn ${isRefreshing ? 'refreshing' : ''}`}
                         onClick={handleRefresh}
@@ -294,117 +390,164 @@ function Tasks() {
                 </div>
             </header>
 
-            {/* Board */}
-            <div className="board">
-                {/* Backlog Column */}
-                <div className={`board-column backlog-column ${collapsed.backlog ? 'collapsed' : ''}`}>
-                    <div className="column-header" onClick={() => toggleCollapse('backlog')}>
-                        <div className="column-header-left">
-                            <CollapseIcon collapsed={collapsed.backlog} />
-                            <h2><BacklogIcon /> Backlog</h2>
+            {/* Sprint Board View */}
+            {viewMode === 'sprint' && (
+                <div className="board">
+                    {/* Backlog Column */}
+                    <div className={`board-column backlog-column ${collapsed.backlog ? 'collapsed' : ''}`}>
+                        <div className="column-header" onClick={() => toggleCollapse('backlog')}>
+                            <div className="column-header-left">
+                                <CollapseIcon collapsed={collapsed.backlog} />
+                                <h2><BacklogIcon /> Backlog</h2>
+                            </div>
+                            <span className="column-count">{categorizedTasks.backlog.length}</span>
                         </div>
-                        <span className="column-count">{categorizedTasks.backlog.length}</span>
+                        {!collapsed.backlog && (
+                            <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'backlog')}>
+                                {categorizedTasks.backlog.map(task => (
+                                    <TaskCard key={task.id} task={task} today={today}
+                                        onDragStart={(e) => handleDragStart(e, task)}
+                                        onDelete={() => deleteTask(task.id)}
+                                        onMoveToSprint={() => moveTask(task.id, 'todo')}
+                                        onEdit={() => handleEditTask(task)}
+                                    />
+                                ))}
+                                {categorizedTasks.backlog.length === 0 && (
+                                    <div className="empty-column">
+                                        <p>No tasks in backlog</p>
+                                        <button className="btn btn-ghost btn-sm" onClick={() => handleOpenForm('backlog')}>+ Add task</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                    {!collapsed.backlog && (
-                        <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'backlog')}>
-                            {categorizedTasks.backlog.map(task => (
-                                <TaskCard key={task.id} task={task} today={today}
-                                    onDragStart={(e) => handleDragStart(e, task)}
-                                    onDelete={() => deleteTask(task.id)}
-                                    onMoveToSprint={() => moveTask(task.id, 'todo')}
-                                    onEdit={() => handleEditTask(task)}
-                                />
-                            ))}
-                            {categorizedTasks.backlog.length === 0 && (
-                                <div className="empty-column">
-                                    <p>No tasks in backlog</p>
-                                    <button className="btn btn-ghost btn-sm" onClick={() => handleOpenForm('backlog')}>+ Add task</button>
+
+                    {/* Sprint Columns */}
+                    <div className="sprint-columns">
+                        {/* To Do */}
+                        <div className={`board-column ${collapsed.todo ? 'collapsed' : ''}`}>
+                            <div className="column-header" onClick={() => toggleCollapse('todo')}>
+                                <div className="column-header-left">
+                                    <CollapseIcon collapsed={collapsed.todo} />
+                                    <h2><TodoIcon /> To Do</h2>
+                                </div>
+                                <span className="column-count">{categorizedTasks.todo.length}</span>
+                            </div>
+                            {!collapsed.todo && (
+                                <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'todo')}>
+                                    {categorizedTasks.todo.map(task => (
+                                        <TaskCard key={task.id} task={task} today={today}
+                                            onDragStart={(e) => handleDragStart(e, task)}
+                                            onDelete={() => deleteTask(task.id)}
+                                            onMoveNext={() => moveTask(task.id, 'in-progress')}
+                                            onMoveBack={() => moveTask(task.id, 'backlog')}
+                                            onEdit={() => handleEditTask(task)}
+                                            showMoveButtons
+                                        />
+                                    ))}
+                                    {categorizedTasks.todo.length === 0 && <div className="empty-column"><p>No tasks in To Do</p></div>}
                                 </div>
                             )}
                         </div>
+
+                        {/* In Progress */}
+                        <div className={`board-column ${collapsed.inProgress ? 'collapsed' : ''}`}>
+                            <div className="column-header in-progress" onClick={() => toggleCollapse('inProgress')}>
+                                <div className="column-header-left">
+                                    <CollapseIcon collapsed={collapsed.inProgress} />
+                                    <h2><InProgressIcon /> In Progress</h2>
+                                </div>
+                                <span className="column-count">{categorizedTasks.inProgress.length}</span>
+                            </div>
+                            {!collapsed.inProgress && (
+                                <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'in-progress')}>
+                                    {categorizedTasks.inProgress.map(task => (
+                                        <TaskCard key={task.id} task={task} today={today}
+                                            onDragStart={(e) => handleDragStart(e, task)}
+                                            onDelete={() => deleteTask(task.id)}
+                                            onMoveNext={() => moveTask(task.id, 'done')}
+                                            onMoveBack={() => moveTask(task.id, 'todo')}
+                                            onEdit={() => handleEditTask(task)}
+                                            showMoveButtons
+                                        />
+                                    ))}
+                                    {categorizedTasks.inProgress.length === 0 && <div className="empty-column"><p>No tasks in In Progress</p></div>}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Done */}
+                        <div className={`board-column ${collapsed.done ? 'collapsed' : ''}`}>
+                            <div className="column-header done" onClick={() => toggleCollapse('done')}>
+                                <div className="column-header-left">
+                                    <CollapseIcon collapsed={collapsed.done} />
+                                    <h2><DoneIcon /> Done</h2>
+                                </div>
+                                <span className="column-count">{categorizedTasks.done.length}</span>
+                            </div>
+                            {!collapsed.done && (
+                                <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'done')}>
+                                    {categorizedTasks.done.map(task => (
+                                        <TaskCard key={task.id} task={task} today={today}
+                                            onDragStart={(e) => handleDragStart(e, task)}
+                                            onDelete={() => deleteTask(task.id)}
+                                            onMoveBack={() => moveTask(task.id, 'in-progress')}
+                                            onEdit={() => handleEditTask(task)}
+                                            isCompleted
+                                        />
+                                    ))}
+                                    {categorizedTasks.done.length === 0 && <div className="empty-column"><p>No tasks in Done</p></div>}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* All Tasks View */}
+            {viewMode === 'all' && (
+                <div className="all-tasks-view">
+                    {filteredTasks.length === 0 ? (
+                        <div className="empty-tasks">
+                            <p>No tasks found</p>
+                            {(searchQuery || filters.priority !== 'all' || filters.status !== 'all') && (
+                                <button className="btn btn-ghost" onClick={() => { setSearchQuery(''); setFilters({ priority: 'all', status: 'all' }); }}>
+                                    Clear filters
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="tasks-list">
+                            {filteredTasks.map(task => {
+                                const taskStatus = task.completed ? 'done' : (task.status || 'backlog')
+                                const isOverdue = !task.completed && task.dueDate && task.dueDate < today
+                                return (
+                                    <div
+                                        key={task.id}
+                                        className={`task-row ${task.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}`}
+                                        onClick={() => handleEditTask(task)}
+                                    >
+                                        <span className={`priority-dot ${task.priority}`} />
+                                        <div className="task-info">
+                                            <span className="task-row-title">{task.title}</span>
+                                            {task.description && <span className="task-row-desc">{task.description.slice(0, 80)}{task.description.length > 80 ? '...' : ''}</span>}
+                                        </div>
+                                        <span className={`status-badge ${taskStatus}`}>{taskStatus === 'in-progress' ? 'In Progress' : taskStatus.charAt(0).toUpperCase() + taskStatus.slice(1)}</span>
+                                        {task.dueDate && (
+                                            <span className={`due-badge ${isOverdue ? 'overdue' : ''}`}>
+                                                {task.dueDate === today ? 'Today' : formatShortDate(task.dueDate)}
+                                            </span>
+                                        )}
+                                        <button className="btn btn-ghost btn-xs delete-btn" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} title="Delete">
+                                            <TrashIcon />
+                                        </button>
+                                    </div>
+                                )
+                            })}
+                        </div>
                     )}
                 </div>
-
-                {/* Sprint Columns */}
-                <div className="sprint-columns">
-                    {/* To Do */}
-                    <div className={`board-column ${collapsed.todo ? 'collapsed' : ''}`}>
-                        <div className="column-header" onClick={() => toggleCollapse('todo')}>
-                            <div className="column-header-left">
-                                <CollapseIcon collapsed={collapsed.todo} />
-                                <h2><TodoIcon /> To Do</h2>
-                            </div>
-                            <span className="column-count">{categorizedTasks.todo.length}</span>
-                        </div>
-                        {!collapsed.todo && (
-                            <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'todo')}>
-                                {categorizedTasks.todo.map(task => (
-                                    <TaskCard key={task.id} task={task} today={today}
-                                        onDragStart={(e) => handleDragStart(e, task)}
-                                        onDelete={() => deleteTask(task.id)}
-                                        onMoveNext={() => moveTask(task.id, 'in-progress')}
-                                        onMoveBack={() => moveTask(task.id, 'backlog')}
-                                        onEdit={() => handleEditTask(task)}
-                                        showMoveButtons
-                                    />
-                                ))}
-                                {categorizedTasks.todo.length === 0 && <div className="empty-column"><p>No tasks in To Do</p></div>}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* In Progress */}
-                    <div className={`board-column ${collapsed.inProgress ? 'collapsed' : ''}`}>
-                        <div className="column-header in-progress" onClick={() => toggleCollapse('inProgress')}>
-                            <div className="column-header-left">
-                                <CollapseIcon collapsed={collapsed.inProgress} />
-                                <h2><InProgressIcon /> In Progress</h2>
-                            </div>
-                            <span className="column-count">{categorizedTasks.inProgress.length}</span>
-                        </div>
-                        {!collapsed.inProgress && (
-                            <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'in-progress')}>
-                                {categorizedTasks.inProgress.map(task => (
-                                    <TaskCard key={task.id} task={task} today={today}
-                                        onDragStart={(e) => handleDragStart(e, task)}
-                                        onDelete={() => deleteTask(task.id)}
-                                        onMoveNext={() => moveTask(task.id, 'done')}
-                                        onMoveBack={() => moveTask(task.id, 'todo')}
-                                        onEdit={() => handleEditTask(task)}
-                                        showMoveButtons
-                                    />
-                                ))}
-                                {categorizedTasks.inProgress.length === 0 && <div className="empty-column"><p>No tasks in In Progress</p></div>}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Done */}
-                    <div className={`board-column ${collapsed.done ? 'collapsed' : ''}`}>
-                        <div className="column-header done" onClick={() => toggleCollapse('done')}>
-                            <div className="column-header-left">
-                                <CollapseIcon collapsed={collapsed.done} />
-                                <h2><DoneIcon /> Done</h2>
-                            </div>
-                            <span className="column-count">{categorizedTasks.done.length}</span>
-                        </div>
-                        {!collapsed.done && (
-                            <div className="column-content" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'done')}>
-                                {categorizedTasks.done.map(task => (
-                                    <TaskCard key={task.id} task={task} today={today}
-                                        onDragStart={(e) => handleDragStart(e, task)}
-                                        onDelete={() => deleteTask(task.id)}
-                                        onMoveBack={() => moveTask(task.id, 'in-progress')}
-                                        onEdit={() => handleEditTask(task)}
-                                        isCompleted
-                                    />
-                                ))}
-                                {categorizedTasks.done.length === 0 && <div className="empty-column"><p>No tasks in Done</p></div>}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+            )}
 
             {/* Task Form Modal (Add/Edit) */}
             {showForm && (
