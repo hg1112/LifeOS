@@ -1,5 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useContext } from 'react'
-import { AuthContext } from '../App'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { getStoredUsername } from '../utils/clientIdStorage'
 
 const FOLDER_NAME = 'LifeOS'
@@ -9,8 +8,9 @@ const TASKS_FILE = 'tasks.json'
 const METADATA_FILE = 'metadata.json'
 const SETTINGS_FILE = 'settings.json'
 
-export function useGoogleDrive() {
-    const { getAccessToken, user } = useContext(AuthContext)
+// Accept getAccessToken and user as parameters instead of useContext
+// This is called from App.jsx before AuthContext.Provider is set up
+export function useGoogleDrive(getAccessToken, user) {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState(null)
     const [folders, setFolders] = useState({

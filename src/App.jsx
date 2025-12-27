@@ -45,7 +45,7 @@ function App() {
     initializeFolders,
     isLoading: isDriveLoading,
     error: driveError
-  } = useGoogleDrive()
+  } = useGoogleDrive(getAccessToken, user)
 
   // Database and search hooks
   const {
