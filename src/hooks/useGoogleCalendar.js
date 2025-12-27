@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react'
-import { useGoogleAuth } from './useGoogleAuth'
+import { useState, useCallback, useContext } from 'react'
+import { AuthContext } from '../App'
 
 export function useGoogleCalendar() {
-    const { getAccessToken, user } = useGoogleAuth()
+    const { getAccessToken, user } = useContext(AuthContext)
     const [calendars, setCalendars] = useState([])
     const [events, setEvents] = useState([])
     const [isLoading, setIsLoading] = useState(false)

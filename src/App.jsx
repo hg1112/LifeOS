@@ -8,7 +8,7 @@ import Notes from './pages/Notes'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
-import { useGoogleAuth } from './hooks/useGoogleAuth'
+import { useFirebaseAuth } from './hooks/useFirebaseAuth'
 import { useGoogleDrive } from './hooks/useGoogleDrive'
 import { useDatabase } from './hooks/useDatabase'
 import { useSearch } from './hooks/useSearch'
@@ -26,10 +26,11 @@ function App() {
     return document.documentElement.getAttribute('data-theme') || 'light'
   })
 
-  // Check if Client ID is configured
+  // Check if Client ID is configured (still needed for Drive API)
   const [clientIdConfigured, setClientIdConfigured] = useState(() => hasClientId())
 
-  const { user, isLoading, isAuthenticated, authError, signIn, signOut } = useGoogleAuth()
+  // Use Firebase Auth for persistent sessions
+  const { user, isLoading, isAuthenticated, authError, signIn, signOut, getAccessToken } = useFirebaseAuth()
   const {
     saveJournalEntry,
     loadJournalEntry,
@@ -542,7 +543,7 @@ function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, authError, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, authError, signIn, signOut, getAccessToken }}>
       <ThemeContext.Provider value={{ theme, toggleTheme }}>
         <DataContext.Provider value={{
           journalEntries,

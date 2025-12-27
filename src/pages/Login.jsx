@@ -5,12 +5,11 @@ import './Login.css'
 function Login() {
     const { signIn, isLoading, authError } = useContext(AuthContext)
     const [error, setError] = useState(null)
-    const [rememberMe, setRememberMe] = useState(true) // Default to remember
 
     const handleSignIn = async () => {
         setError(null)
         try {
-            await signIn(rememberMe)
+            await signIn()
         } catch (err) {
             setError(err.message || 'Failed to sign in')
         }
@@ -83,24 +82,12 @@ function Login() {
                         )}
                     </button>
 
-                    {/* Remember Me Checkbox */}
-                    <label className="remember-me-label">
-                        <input
-                            type="checkbox"
-                            checked={rememberMe}
-                            onChange={(e) => setRememberMe(e.target.checked)}
-                        />
-                        <span className="remember-me-text">
-                            Remember this device for 7 days
-                        </span>
-                    </label>
-
                     {displayError && (
                         <p className="login-error">{displayError}</p>
                     )}
 
                     <p className="login-note">
-                        Sign in with your Google account to securely sync your journals and tasks to Google Drive.
+                        Sign in with your Google account. Your session will persist across browser restarts.
                     </p>
                 </div>
 

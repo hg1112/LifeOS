@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { useGoogleAuth } from './useGoogleAuth'
+import { useState, useCallback, useRef, useEffect, useContext } from 'react'
+import { AuthContext } from '../App'
 import { getStoredUsername } from '../utils/clientIdStorage'
 
 const FOLDER_NAME = 'LifeOS'
@@ -10,7 +10,7 @@ const METADATA_FILE = 'metadata.json'
 const SETTINGS_FILE = 'settings.json'
 
 export function useGoogleDrive() {
-    const { getAccessToken, user } = useGoogleAuth()
+    const { getAccessToken, user } = useContext(AuthContext)
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState(null)
     const [folders, setFolders] = useState({
